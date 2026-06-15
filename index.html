@@ -6,7 +6,193 @@
 <title>Traductor de Hábitos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js">
+
+// ==============================
+// ASISTENTE CONVERSACIONAL
+// ==============================
+let chatHistory = [];
+let chatListening = false;
+let chatRecognition = null;
+
+// FAB toggle
+document.getElementById('fab').addEventListener('click', openChat);
+document.getElementById('btn-close-chat').addEventListener('click', closeChat);
+
+function openChat() {
+  document.getElementById('chat-panel').classList.add('open');
+  document.getElementById('fab').classList.add('hidden');
+  if (!chatHistory.length) sendBotWelcome();
+  setTimeout(() => document.getElementById('chat-input').focus(), 400);
+}
+
+function closeChat() {
+  document.getElementById('chat-panel').classList.remove('open');
+  document.getElementById('fab').classList.remove('hidden');
+  if (chatListening && chatRecognition) chatRecognition.stop();
+}
+
+async function sendBotWelcome() {
+  const hour = new Date().getHours();
+  const greet = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
+  const total = records.length;
+  const msg = total >= 3
+    ? `${greet}. Tengo acceso a tus ${total} registros. Podés preguntarme sobre tus patrones de sueño, alimentación, pulso, energía o cualquier hábito que hayas registrado.`
+    : `${greet}. Soy tu asistente de hábitos. Cuando tengas algunos registros cargados, voy a poder analizar tus patrones y responder tus preguntas.`;
+  addBotMsg(msg);
+}
+
+// Sugerencias rápidas
+document.getElementById('chat-sugs').addEventListener('click', e => {
+  const btn = e.target.closest('.sug-btn');
+  if (!btn) return;
+  sendUserMsg(btn.textContent);
+});
+
+// Enviar con botón
+document.getElementById('btn-send').addEventListener('click', () => {
+  const txt = document.getElementById('chat-input').value.trim();
+  if (txt) { sendUserMsg(txt); document.getElementById('chat-input').value = ''; }
+});
+
+// Enviar con Enter
+document.getElementById('chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const txt = e.target.value.trim();
+    if (txt) { sendUserMsg(txt); e.target.value = ''; }
+  }
+});
+
+// Voz en chat
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  chatRecognition = new SR();
+  chatRecognition.lang = 'es-AR';
+  chatRecognition.continuous = false;
+  chatRecognition.interimResults = false;
+
+  chatRecognition.onstart = () => {
+    chatListening = true;
+    document.getElementById('btn-voice-chat').classList.add('listening');
+    document.getElementById('chat-input').placeholder = 'Escuchando...';
+  };
+  chatRecognition.onresult = e => {
+    const txt = e.results[0][0].transcript.trim();
+    document.getElementById('chat-input').value = txt;
+  };
+  chatRecognition.onend = () => {
+    chatListening = false;
+    document.getElementById('btn-voice-chat').classList.remove('listening');
+    document.getElementById('chat-input').placeholder = 'Preguntame sobre tus hábitos...';
+    const txt = document.getElementById('chat-input').value.trim();
+    if (txt) { sendUserMsg(txt); document.getElementById('chat-input').value = ''; }
+  };
+  chatRecognition.onerror = () => {
+    chatListening = false;
+    document.getElementById('btn-voice-chat').classList.remove('listening');
+    document.getElementById('chat-input').placeholder = 'Preguntame sobre tus hábitos...';
+  };
+}
+
+document.getElementById('btn-voice-chat').addEventListener('click', () => {
+  if (!chatRecognition) return toast('Tu navegador no soporta voz');
+  chatListening ? chatRecognition.stop() : chatRecognition.start();
+});
+
+// ---- Funciones de chat ----
+function sendUserMsg(text) {
+  addMsg('user', text);
+  chatHistory.push({ role: 'user', content: text });
+  showTyping();
+  askAssistant(text);
+}
+
+function addMsg(role, text) {
+  const el = document.createElement('div');
+  el.className = `msg ${role}`;
+  const now = new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  el.innerHTML = `
+    <div class="msg-bubble">${text}</div>
+    <div class="msg-time">${now}</div>`;
+  document.getElementById('chat-messages').appendChild(el);
+  scrollChat();
+}
+
+function addBotMsg(text) {
+  removeTyping();
+  addMsg('bot', text);
+  chatHistory.push({ role: 'assistant', content: text });
+}
+
+function showTyping() {
+  removeTyping();
+  const el = document.createElement('div');
+  el.className = 'msg bot msg-typing';
+  el.id = 'typing-indicator';
+  el.innerHTML = `<div class="msg-bubble">
+    <div class="dot-typing"></div>
+    <div class="dot-typing"></div>
+    <div class="dot-typing"></div>
+  </div>`;
+  document.getElementById('chat-messages').appendChild(el);
+  scrollChat();
+}
+
+function removeTyping() {
+  const t = document.getElementById('typing-indicator');
+  if (t) t.remove();
+}
+
+function scrollChat() {
+  const m = document.getElementById('chat-messages');
+  setTimeout(() => m.scrollTop = m.scrollHeight, 50);
+}
+
+async function askAssistant(question) {
+  // Preparar contexto de registros
+  const recsContext = records.slice(0, 80).map(r => {
+    const ts = r.timestamp?.toDate ? r.timestamp.toDate() : new Date(r.timestamp || 0);
+    return {
+      categoria: r.category,
+      texto: r.text || r.originalText,
+      valor: r.numericValue,
+      hora: r.hour ?? ts.getHours(),
+      fecha: ts.toLocaleDateString('es-AR', {weekday:'short', day:'2-digit', month:'2-digit'})
+    };
+  });
+
+  const systemPrompt = `Sos el asistente conversacional de "Traductor de Hábitos". Tu rol es analizar los datos personales del usuario y responder sus preguntas de forma observadora, empática y específica.
+
+DATOS DEL USUARIO (${recsContext.length} registros recientes):
+${JSON.stringify(recsContext)}
+
+REGLAS CRÍTICAS:
+1. NUNCA uses: bien, mal, correcto, incorrecto, deberías, tenés que, te recomiendo médicamente
+2. Siempre hablás en base a los datos reales del usuario
+3. Si no hay datos suficientes para responder, lo decís claramente
+4. Usá lenguaje observador: "en tu historial", "tus datos muestran", "parece que", "tu cuerpo tiende a"
+5. Sé específico con fechas, horas y valores cuando existan en los datos
+6. Comparaciones concretas cuando sea posible
+7. Español argentino informal, cálido pero preciso
+8. Máximo 3-4 oraciones por respuesta, directo al punto
+9. Al final de cada respuesta que involucre salud, agregá una línea pequeña recordando que es solo una observación de hábitos`;
+
+  const messages = [
+    { role: 'user', content: systemPrompt },
+    { role: 'assistant', content: 'Entendido. Estoy listo para analizar los datos y responder con observaciones basadas únicamente en los registros del usuario.' },
+    ...chatHistory.slice(-8) // últimas 4 interacciones para contexto
+  ];
+
+  try {
+    const response = await groq(messages, 350);
+    addBotMsg(response.trim());
+  } catch(e) {
+    removeTyping();
+    addBotMsg('No pude conectarme en este momento. Intentá de nuevo en unos segundos.');
+  }
+}
+
+</script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 <style>
@@ -254,6 +440,141 @@ main{flex:1;padding:1.25rem;max-width:600px;margin:0 auto;width:100%;}
   .voice-ico{font-size:1.9rem;}
   .th-card{flex-direction:column;text-align:center;}
 }
+
+/* ===== ASISTENTE FLOTANTE ===== */
+#fab {
+  position:fixed; bottom:1.5rem; right:1.25rem; z-index:500;
+  width:56px; height:56px; border-radius:50%;
+  background:var(--accent); border:none; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  font-size:1.4rem; box-shadow:0 4px 20px rgba(30,140,110,.45);
+  transition:transform .2s, box-shadow .2s;
+  animation:fabPulse 3s ease-in-out infinite;
+}
+#fab:hover { transform:scale(1.08); box-shadow:0 6px 28px rgba(30,140,110,.6); }
+@keyframes fabPulse {
+  0%,100% { box-shadow:0 4px 20px rgba(30,140,110,.45); }
+  50%      { box-shadow:0 4px 32px rgba(30,140,110,.75); }
+}
+#fab.hidden { display:none; }
+
+#chat-panel {
+  position:fixed; inset:0; z-index:600;
+  display:flex; flex-direction:column;
+  background:var(--bg);
+  transform:translateY(100%);
+  transition:transform .35s cubic-bezier(.4,0,.2,1);
+}
+#chat-panel.open { transform:translateY(0); }
+
+.chat-header {
+  background:var(--panel); border-bottom:1px solid var(--border2);
+  padding:.9rem 1.25rem; display:flex; align-items:center; justify-content:space-between;
+  flex-shrink:0;
+}
+.chat-header-left { display:flex; align-items:center; gap:.65rem; }
+.chat-avatar {
+  width:36px; height:36px; border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex; align-items:center; justify-content:center; font-size:1rem;
+}
+.chat-name { font-size:.92rem; font-weight:600; }
+.chat-sub  { font-size:.7rem; color:var(--accent2); }
+.btn-close-chat {
+  background:none; border:none; color:var(--text2);
+  font-size:1.3rem; cursor:pointer; padding:.25rem;
+  border-radius:7px; line-height:1;
+}
+.btn-close-chat:hover { color:var(--text); }
+
+.chat-messages {
+  flex:1; overflow-y:auto; padding:1rem 1.1rem;
+  display:flex; flex-direction:column; gap:.75rem;
+  scroll-behavior:smooth;
+}
+.chat-messages::-webkit-scrollbar { width:4px; }
+.chat-messages::-webkit-scrollbar-track { background:transparent; }
+.chat-messages::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+.msg { display:flex; flex-direction:column; max-width:88%; }
+.msg.user { align-self:flex-end; align-items:flex-end; }
+.msg.bot  { align-self:flex-start; align-items:flex-start; }
+
+.msg-bubble {
+  padding:.65rem .9rem; border-radius:14px;
+  font-size:.86rem; line-height:1.55;
+}
+.msg.user .msg-bubble {
+  background:var(--accent); color:#fff;
+  border-bottom-right-radius:4px;
+}
+.msg.bot .msg-bubble {
+  background:var(--panel); color:var(--text);
+  border:1px solid var(--border2);
+  border-bottom-left-radius:4px;
+  font-family:var(--serif);
+}
+.msg-time { font-size:.65rem; color:var(--text3); margin-top:.2rem; font-family:var(--mono); }
+
+.msg-typing .msg-bubble {
+  display:flex; align-items:center; gap:4px; padding:.7rem .9rem;
+}
+.dot-typing {
+  width:7px; height:7px; border-radius:50%; background:var(--accent2);
+  animation:dotBounce 1.2s ease-in-out infinite;
+}
+.dot-typing:nth-child(2){ animation-delay:.2s; }
+.dot-typing:nth-child(3){ animation-delay:.4s; }
+@keyframes dotBounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
+
+.chat-disclaimer {
+  text-align:center; font-size:.68rem; color:var(--text3);
+  padding:.4rem 1rem; flex-shrink:0;
+  border-top:1px solid var(--border2);
+}
+
+.chat-input-area {
+  background:var(--panel); border-top:1px solid var(--border2);
+  padding:.75rem 1rem; display:flex; align-items:center; gap:.6rem; flex-shrink:0;
+}
+.chat-input {
+  flex:1; background:var(--panel2); border:1px solid var(--border2);
+  border-radius:22px; padding:.6rem 1rem; color:var(--text);
+  font-family:var(--sans); font-size:.88rem; outline:none;
+  transition:border-color .2s;
+}
+.chat-input:focus { border-color:var(--accent); }
+.chat-input::placeholder { color:var(--text3); }
+.btn-voice-chat {
+  width:40px; height:40px; border-radius:50%; border:1.5px solid var(--accent);
+  background:transparent; color:var(--accent2); font-size:1.1rem;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:all .2s; flex-shrink:0;
+}
+.btn-voice-chat.listening {
+  background:var(--accent); color:#fff;
+  animation:breathe 1.4s ease-in-out infinite;
+}
+.btn-send {
+  width:40px; height:40px; border-radius:50%; border:none;
+  background:var(--accent); color:#fff; font-size:1rem;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:opacity .2s; flex-shrink:0;
+}
+.btn-send:hover { opacity:.85; }
+
+.chat-suggestions {
+  display:flex; gap:.5rem; overflow-x:auto; padding:.5rem 1rem;
+  scrollbar-width:none; flex-shrink:0;
+}
+.chat-suggestions::-webkit-scrollbar { display:none; }
+.sug-btn {
+  white-space:nowrap; padding:.35rem .75rem; border-radius:16px;
+  border:1px solid var(--border); background:var(--panel2);
+  color:var(--text2); font-size:.75rem; cursor:pointer;
+  font-family:var(--sans); transition:all .2s; flex-shrink:0;
+}
+.sug-btn:hover { border-color:var(--accent); color:var(--accent2); }
 </style>
 </head>
 <body>
@@ -629,26 +950,40 @@ document.getElementById('logo-tap').addEventListener('click', () => {
 });
 
 async function openAdmin() {
-  const snap = await db.collection('users').get();
   const list = document.getElementById('admin-list');
-  list.innerHTML = '';
-  snap.forEach(doc => {
-    const d = doc.data();
-    const row = document.createElement('div');
-    row.className = 'admin-row';
-    row.innerHTML = `
-      <div>
-        <div style="font-size:.8rem;font-weight:600">${d.email||doc.id}</div>
-        <div class="admin-email">Estado: <strong>${d.status||'demo'}</strong></div>
-      </div>
-      <div class="admin-btns">
-        <button class="btn-xs y" data-uid="${doc.id}" data-a="extend">+7 días</button>
-        <button class="btn-xs g" data-uid="${doc.id}" data-a="activate">Activar</button>
-        <button class="btn-xs r" data-uid="${doc.id}" data-a="revoke">Revocar</button>
-      </div>`;
-    list.appendChild(row);
-  });
+  list.innerHTML = '<div style="color:var(--text2);font-size:.82rem;padding:.5rem 0">Cargando usuarios...</div>';
   document.getElementById('admin').classList.add('on');
+  try {
+    const allDocs = [];
+    // Traer usuario propio siempre
+    const selfSnap = await db.collection('users').doc(user.uid).get();
+    allDocs.push({ id: user.uid, data: selfSnap.data() });
+    // Intentar traer todos (funciona si las reglas lo permiten)
+    try {
+      const snap = await db.collection('users').get();
+      snap.forEach(doc => {
+        if (doc.id !== user.uid) allDocs.push({ id: doc.id, data: doc.data() });
+      });
+    } catch(e) { /* sin permisos para leer todos */ }
+    list.innerHTML = '';
+    allDocs.forEach(({ id, data: d }) => {
+      const row = document.createElement('div');
+      row.className = 'admin-row';
+      row.innerHTML = `
+        <div>
+          <div style="font-size:.8rem;font-weight:600">${d?.email || id}</div>
+          <div class="admin-email">Estado: <strong>${d?.status || 'demo'}</strong></div>
+        </div>
+        <div class="admin-btns">
+          <button class="btn-xs y" data-uid="${id}" data-a="extend">+7 días</button>
+          <button class="btn-xs g" data-uid="${id}" data-a="activate">Activar</button>
+          <button class="btn-xs r" data-uid="${id}" data-a="revoke">Revocar</button>
+        </div>`;
+      list.appendChild(row);
+    });
+  } catch(e) {
+    list.innerHTML = `<div style="color:var(--danger);font-size:.8rem">Error: ${e.message}</div>`;
+  }
 }
 
 document.getElementById('admin-list').addEventListener('click', async e => {
@@ -1082,12 +1417,14 @@ function renderHuella() {
     </div>
     <div class="fase-card">
       <div class="fase-header">
-        <div class="fase-badge inactive">FASE 3</div>
-        <div class="fase-name">Asistente conversacional</div>
+        <div class="fase-badge">FASE 3</div>
+        <div class="fase-name">✅ Asistente conversacional</div>
       </div>
-      <div class="fase-desc">Preguntás: "¿Por qué dormí peor esta semana?" y la app responde con tus propios datos.</div>
+      <div class="fase-desc">Preguntás por voz o texto y el asistente responde cruzando tus propios registros.</div>
       <div class="fase-items">
-        <div class="fase-item"><div class="fase-dot off"></div>Próximamente</div>
+        <div class="fase-item"><div class="fase-dot"></div>Botón flotante 🤖 activo</div>
+        <div class="fase-item"><div class="fase-dot"></div>Voz + texto habilitados</div>
+        <div class="fase-item"><div class="fase-dot"></div>Acceso a tus últimos 80 registros</div>
       </div>
     </div>
     <div class="fase-card">
@@ -1102,5 +1439,40 @@ function renderHuella() {
     </div>`;
 }
 </script>
+
+<!-- FAB ASISTENTE -->
+<button id="fab" title="Asistente">🤖</button>
+
+<!-- CHAT PANEL -->
+<div id="chat-panel">
+  <div class="chat-header">
+    <div class="chat-header-left">
+      <div class="chat-avatar">🧬</div>
+      <div>
+        <div class="chat-name">Asistente TH</div>
+        <div class="chat-sub">Analiza tus propios datos</div>
+      </div>
+    </div>
+    <button class="btn-close-chat" id="btn-close-chat">✕</button>
+  </div>
+
+  <div class="chat-suggestions" id="chat-sugs">
+    <button class="sug-btn">¿Por qué dormí peor esta semana?</button>
+    <button class="sug-btn">¿Qué comí los días con más energía?</button>
+    <button class="sug-btn">¿Cómo estuvo mi pulso?</button>
+    <button class="sug-btn">¿Cuándo me sentí mejor?</button>
+    <button class="sug-btn">Resumí mis hábitos de esta semana</button>
+  </div>
+
+  <div class="chat-messages" id="chat-messages"></div>
+
+  <div class="chat-disclaimer">⚕️ Observaciones basadas en tus registros — no reemplaza consulta médica</div>
+
+  <div class="chat-input-area">
+    <button class="btn-voice-chat" id="btn-voice-chat">🎙️</button>
+    <input class="chat-input" id="chat-input" placeholder="Preguntame sobre tus hábitos..." type="text">
+    <button class="btn-send" id="btn-send">➤</button>
+  </div>
+</div>
 </body>
 </html>
