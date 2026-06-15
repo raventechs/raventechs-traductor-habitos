@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Traductor de Hábitos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<style>
+:root {
+  --bg:       #0C0C14;
+  --panel:    #161623;
+  --panel2:   #1E1E30;
+  --panel3:   #252538;
+  --accent:   #1E8C6E;
+  --accent2:  #5EEAD4;
+  --accent-g: rgba(30,140,110,0.18);
+  --text:     #F1F5F9;
+  --text2:    #94A3B8;
+  --text3:    #64748B;
+  --warn:     #F59E0B;
+  --danger:   #EF4444;
+  --border:   rgba(30,140,110,0.18);
+  --border2:  rgba(255,255,255,0.06);
+  --r:        14px;
+  --sans:     'Inter', sans-serif;
+  --serif:    'Lora', Georgia, serif;
+  --mono:     'JetBrains Mono', monospace;
+}
+.light {
+  --bg:      #F0F4F2;
+  --panel:   #FFFFFF;
+  --panel2:  #E8F4F0;
+  --panel3:  #D6EDE7;
+  --accent:  #1E8C6E;
+  --accent2: #0F7A5C;
+  --accent-g:rgba(30,140,110,0.1);
+  --text:    #0F172A;
+  --text2:   #334155;
+  --text3:   #64748B;
+  --border:  rgba(30,140,110,0.2);
+  --border2: rgba(0,0,0,0.07);
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;transition:background .3s,color .3s;}
+
+/* ===== AUTH ===== */
+#auth{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem;gap:1.25rem;}
+.auth-brand{text-align:center;}
+.auth-brand h1{font-family:var(--serif);font-size:2rem;font-weight:600;color:var(--text);letter-spacing:-.5px;}
+.auth-brand p{color:var(--text2);font-size:.85rem;margin-top:.4rem;}
+.auth-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:1.75rem;width:100%;max-width:360px;display:flex;flex-direction:column;gap:.9rem;}
+.field{display:flex;flex-direction:column;gap:.35rem;}
+.field label{font-size:.75rem;color:var(--text2);font-weight:500;letter-spacing:.04em;text-transform:uppercase;}
+.input{background:var(--panel2);border:1px solid var(--border2);border-radius:9px;padding:.7rem .95rem;color:var(--text);font-family:var(--sans);font-size:.9rem;outline:none;transition:border-color .2s;width:100%;}
+.input:focus{border-color:var(--accent);}
+.input::placeholder{color:var(--text3);}
+.btn-main{background:var(--accent);color:#fff;border:none;border-radius:9px;padding:.8rem;font-size:.9rem;font-family:var(--sans);font-weight:600;cursor:pointer;transition:opacity .2s;width:100%;}
+.btn-main:hover{opacity:.88;}
+.btn-google{background:var(--panel2);color:var(--text);border:1px solid var(--border2);border-radius:9px;padding:.75rem;font-size:.88rem;font-family:var(--sans);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.5rem;transition:border-color .2s;width:100%;}
+.btn-google:hover{border-color:var(--accent);}
+.divider{text-align:center;color:var(--text3);font-size:.78rem;}
+.auth-switch{text-align:center;color:var(--accent2);font-size:.82rem;cursor:pointer;}
+.auth-switch:hover{text-decoration:underline;}
+
+/* ===== DEMO LOCK ===== */
+#demo-lock{display:none;position:fixed;inset:0;z-index:9999;background:rgba(12,12,20,.97);flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;padding:2rem;text-align:center;}
+#demo-lock.on{display:flex;}
+.lock-emoji{font-size:3rem;}
+.lock-h{font-family:var(--serif);font-size:1.5rem;}
+.lock-p{color:var(--text2);font-size:.88rem;max-width:280px;line-height:1.6;}
+.btn-outline{background:transparent;color:var(--accent2);border:1px solid var(--accent);border-radius:9px;padding:.75rem 1.75rem;font-size:.88rem;font-family:var(--sans);cursor:pointer;}
+
+/* ===== ADMIN ===== */
+#admin{display:none;position:fixed;inset:0;z-index:9998;background:rgba(12,12,20,.97);flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:1.5rem;overflow-y:auto;}
+#admin.on{display:flex;}
+.admin-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:1.5rem;width:100%;max-width:420px;display:flex;flex-direction:column;gap:1rem;}
+.admin-h{font-size:1rem;font-weight:700;}
+.admin-row{background:var(--panel2);border-radius:10px;padding:.75rem 1rem;display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;}
+.admin-email{font-size:.78rem;color:var(--text2);word-break:break-all;}
+.admin-status{font-size:.72rem;font-weight:600;}
+.admin-btns{display:flex;gap:.4rem;flex-wrap:wrap;}
+.btn-xs{font-size:.72rem;padding:.32rem .65rem;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-family:var(--sans);}
+.btn-xs.g{border-color:#10B981;color:#10B981;}
+.btn-xs.y{border-color:var(--warn);color:var(--warn);}
+.btn-xs.r{border-color:var(--danger);color:var(--danger);}
+.btn-close{background:transparent;border:1px solid var(--border2);color:var(--text2);border-radius:9px;padding:.6rem 1.5rem;cursor:pointer;font-family:var(--sans);font-size:.82rem;}
+
+/* ===== APP SHELL ===== */
+#app{display:none;flex-direction:column;min-height:100vh;}
+#app.on{display:flex;}
+
+header{background:var(--panel);border-bottom:1px solid var(--border2);padding:.9rem 1.25rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.logo{font-family:var(--serif);font-size:1.15rem;font-weight:600;color:var(--text);cursor:pointer;user-select:none;letter-spacing:-.3px;}
+.logo span{color:var(--accent2);}
+.h-right{display:flex;align-items:center;gap:.6rem;}
+.demo-pill{background:rgba(245,158,11,.12);color:var(--warn);border:1px solid rgba(245,158,11,.25);border-radius:20px;font-size:.68rem;font-weight:600;padding:.22rem .55rem;}
+.icon-btn{background:none;border:none;color:var(--text2);cursor:pointer;font-size:1rem;padding:.3rem;border-radius:7px;line-height:1;}
+.icon-btn:hover{color:var(--accent2);}
+
+.tabs{display:flex;background:var(--panel);border-bottom:1px solid var(--border2);overflow-x:auto;scrollbar-width:none;}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{flex:1;min-width:72px;padding:.75rem .4rem;font-size:.75rem;font-family:var(--sans);font-weight:500;color:var(--text3);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.tab.on{color:var(--accent2);border-bottom-color:var(--accent);}
+
+main{flex:1;padding:1.25rem;max-width:600px;margin:0 auto;width:100%;}
+
+/* ===== TOAST ===== */
+#toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(16px);background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:.6rem 1.2rem;font-size:.82rem;color:var(--text);opacity:0;transition:all .25s;z-index:8000;white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.35);}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ===== TAB HOY ===== */
+.hoy-hero{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:1.5rem;margin-bottom:1rem;position:relative;overflow:hidden;}
+.hoy-hero::after{content:'';position:absolute;top:-40px;right:-40px;width:120px;height:120px;border-radius:50%;background:var(--accent-g);pointer-events:none;}
+.hoy-label{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--accent2);margin-bottom:.5rem;}
+.hoy-frase{font-family:var(--serif);font-size:1.05rem;color:var(--text);line-height:1.6;font-style:italic;}
+.hoy-frase-loading{color:var(--text3);font-size:.88rem;}
+
+/* TH Index */
+.th-card{background:linear-gradient(135deg,var(--panel) 0%,var(--panel2) 100%);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem;margin-bottom:1rem;display:flex;align-items:center;gap:1.25rem;}
+.th-ring{position:relative;width:72px;height:72px;flex-shrink:0;}
+.th-ring svg{position:absolute;inset:0;transform:rotate(-90deg);}
+.th-ring circle{fill:none;stroke-width:5;}
+.th-ring .track{stroke:var(--panel3);}
+.th-ring .fill{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .8s ease;}
+.th-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:1rem;font-weight:600;color:var(--accent2);}
+.th-info{}
+.th-title{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:.25rem;}
+.th-val{font-family:var(--serif);font-size:.95rem;color:var(--text);line-height:1.4;}
+
+/* Descubrimientos recientes */
+.sec-title{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:.65rem;}
+.disc-card{background:var(--panel);border:1px solid var(--border2);border-left:2px solid var(--accent);border-radius:var(--r);padding:1rem 1rem 1rem 1.1rem;margin-bottom:.65rem;position:relative;overflow:hidden;}
+.disc-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--accent),var(--accent2));animation:borderWrite .6s ease forwards;}
+@keyframes borderWrite{from{height:0}to{height:100%}}
+.disc-tipo{font-size:.67rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--accent2);margin-bottom:.3rem;}
+.disc-text{font-family:var(--serif);font-size:.9rem;color:var(--text);line-height:1.55;}
+.disc-nota{margin-top:.45rem;font-size:.72rem;color:var(--text3);border-top:1px solid var(--border2);padding-top:.4rem;}
+
+.empty-state{text-align:center;padding:2rem 1rem;color:var(--text3);font-size:.86rem;line-height:1.6;}
+
+/* ===== TAB REGISTRAR ===== */
+.reg-voice{display:flex;flex-direction:column;align-items:center;gap:1.25rem;padding:1rem 0 1.5rem;}
+.voice-wrap{position:relative;display:flex;align-items:center;justify-content:center;}
+.voice-btn{width:110px;height:110px;border-radius:50%;border:1.5px solid var(--accent);background:radial-gradient(circle,var(--accent-g) 0%,transparent 70%);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .3s;position:relative;}
+.voice-btn.listening{animation:breathe 1.6s ease-in-out infinite;border-color:var(--accent2);box-shadow:0 0 36px var(--accent-g);}
+@keyframes breathe{0%,100%{transform:scale(1);}50%{transform:scale(1.07);}}
+.voice-pulse{position:absolute;inset:-10px;border-radius:50%;border:1px solid var(--accent);opacity:0;}
+.voice-btn.listening .voice-pulse{animation:pulseRing 1.6s ease-out infinite;}
+@keyframes pulseRing{0%{transform:scale(1);opacity:.5;}100%{transform:scale(1.45);opacity:0;}}
+.voice-ico{font-size:2.2rem;pointer-events:none;}
+.voice-hint{font-size:.82rem;color:var(--text2);text-align:center;min-height:1.2rem;}
+
+.cat-chips{display:flex;flex-wrap:wrap;gap:.4rem;justify-content:center;width:100%;}
+.chip{padding:.35rem .8rem;border-radius:20px;font-size:.75rem;border:1px solid var(--border2);background:var(--panel2);color:var(--text2);cursor:pointer;transition:all .2s;}
+.chip.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+.transcript{background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);padding:.9rem 1rem;width:100%;font-size:.88rem;color:var(--text);min-height:56px;line-height:1.5;}
+.transcript.muted{color:var(--text3);font-style:italic;}
+
+.reg-fields{width:100%;display:flex;flex-direction:column;gap:.65rem;margin-bottom:.75rem;}
+.field-row{display:flex;gap:.6rem;align-items:flex-end;}
+.field-row .input{flex:1;}
+.field-label{font-size:.72rem;color:var(--text2);font-weight:500;margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.04em;}
+.btn-save{background:var(--accent);color:#fff;border:none;border-radius:9px;padding:.72rem 1.1rem;font-size:.85rem;font-family:var(--sans);font-weight:600;cursor:pointer;white-space:nowrap;transition:opacity .2s;flex-shrink:0;}
+.btn-save:hover{opacity:.88;}
+
+.rec-list{display:flex;flex-direction:column;gap:.55rem;}
+.rec-item{background:var(--panel);border:1px solid var(--border2);border-radius:11px;padding:.7rem .9rem;display:flex;align-items:center;gap:.7rem;}
+.rec-ico{font-size:1.1rem;flex-shrink:0;}
+.rec-body{flex:1;min-width:0;}
+.rec-text{font-size:.83rem;color:var(--text);line-height:1.3;}
+.rec-meta{font-size:.68rem;color:var(--text3);margin-top:.15rem;font-family:var(--mono);}
+.rec-cat{font-size:.67rem;padding:.18rem .45rem;border-radius:5px;font-weight:600;flex-shrink:0;}
+.c-alimentacion{background:rgba(16,185,129,.12);color:#34D399;}
+.c-sueno{background:rgba(124,58,237,.15);color:#A78BFA;}
+.c-pulso{background:rgba(239,68,68,.12);color:#FCA5A5;}
+.c-animo{background:rgba(245,158,11,.12);color:#FCD34D;}
+.c-actividad{background:rgba(59,130,246,.12);color:#93C5FD;}
+.c-peso{background:rgba(236,72,153,.12);color:#F9A8D4;}
+.c-glucemia{background:rgba(251,146,60,.12);color:#FED7AA;}
+.c-otro{background:rgba(100,116,139,.12);color:#94A3B8;}
+
+/* ===== TAB DESCUBRIMIENTOS ===== */
+.disc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;}
+.btn-analizar{background:var(--panel2);border:1px solid var(--border);color:var(--accent2);border-radius:9px;padding:.48rem 1rem;font-size:.78rem;font-family:var(--sans);cursor:pointer;font-weight:500;display:flex;align-items:center;gap:.35rem;transition:border-color .2s;}
+.btn-analizar:hover{border-color:var(--accent);}
+.spinner{width:28px;height:28px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .75s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-state{display:flex;flex-direction:column;align-items:center;gap:.85rem;padding:2.5rem 1rem;color:var(--text2);font-size:.86rem;}
+.insight-filter{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.85rem;}
+.filter-btn{padding:.28rem .7rem;border-radius:6px;font-size:.72rem;border:1px solid var(--border2);background:transparent;color:var(--text3);cursor:pointer;font-family:var(--sans);}
+.filter-btn.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+/* ===== TAB MI HUELLA ===== */
+.huella-header{margin-bottom:1rem;}
+.huella-header h2{font-family:var(--serif);font-size:1.15rem;font-weight:600;}
+.huella-header p{font-size:.8rem;color:var(--text2);margin-top:.2rem;line-height:1.5;}
+
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:1rem;}
+.stat-card{background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);padding:.9rem 1rem;}
+.stat-lbl{font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.2rem;}
+.stat-val{font-family:var(--mono);font-size:1.5rem;font-weight:600;color:var(--accent2);}
+.stat-unit{font-size:.72rem;color:var(--text2);}
+
+.chart-card{background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);padding:1rem 1.1rem;margin-bottom:.85rem;}
+.chart-title{font-size:.75rem;font-weight:600;color:var(--text2);margin-bottom:.75rem;}
+.bar-chart{display:flex;align-items:flex-end;gap:5px;height:64px;}
+.bar-col{display:flex;flex-direction:column;align-items:center;flex:1;height:100%;justify-content:flex-end;gap:3px;}
+.bar{width:100%;border-radius:3px 3px 0 0;background:linear-gradient(180deg,var(--accent),var(--accent2));transition:height .5s ease;min-height:2px;}
+.bar-lbl{font-size:.58rem;color:var(--text3);font-family:var(--mono);}
+
+.dist-row{display:flex;align-items:center;gap:.7rem;margin-bottom:.4rem;}
+.dist-lbl{width:88px;font-size:.75rem;color:var(--text2);flex-shrink:0;}
+.dist-bar-wrap{flex:1;height:7px;background:var(--panel3);border-radius:4px;overflow:hidden;}
+.dist-bar{height:100%;background:var(--accent);border-radius:4px;transition:width .5s;}
+.dist-pct{font-size:.7rem;color:var(--text3);font-family:var(--mono);width:28px;text-align:right;flex-shrink:0;}
+
+.fase-card{background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);padding:1rem;margin-bottom:.65rem;}
+.fase-header{display:flex;align-items:center;gap:.65rem;margin-bottom:.5rem;}
+.fase-badge{background:var(--accent);color:#fff;border-radius:6px;font-size:.68rem;font-weight:700;padding:.2rem .55rem;font-family:var(--mono);}
+.fase-badge.inactive{background:var(--panel3);color:var(--text3);}
+.fase-name{font-size:.88rem;font-weight:600;}
+.fase-desc{font-size:.78rem;color:var(--text2);line-height:1.5;}
+.fase-items{margin-top:.5rem;display:flex;flex-direction:column;gap:.2rem;}
+.fase-item{font-size:.76rem;color:var(--text2);display:flex;align-items:center;gap:.4rem;}
+.fase-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+.fase-dot.off{background:var(--text3);}
+
+/* ===== TAB PERFIL ===== */
+.prof-card{background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);padding:1.25rem;margin-bottom:.75rem;}
+.prof-avatar{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:1.4rem;margin-bottom:.75rem;}
+.prof-name{font-size:1rem;font-weight:600;margin-bottom:.15rem;}
+.prof-email{font-size:.8rem;color:var(--text3);}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:.5rem 0;}
+.toggle-lbl{font-size:.86rem;color:var(--text2);}
+.tog{width:42px;height:23px;border-radius:12px;background:var(--panel3);border:1px solid var(--border2);cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;}
+.tog.on{background:var(--accent);}
+.tog-dot{position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:2px;left:2px;transition:left .2s;}
+.tog.on .tog-dot{left:21px;}
+.legal-card{background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);padding:1.1rem;margin-bottom:.75rem;}
+.legal-text{font-size:.78rem;color:var(--text2);line-height:1.6;}
+.btn-logout{background:transparent;border:1px solid rgba(239,68,68,.25);color:var(--danger);border-radius:9px;padding:.72rem;font-size:.84rem;font-family:var(--sans);cursor:pointer;width:100%;transition:background .2s;}
+.btn-logout:hover{background:rgba(239,68,68,.07);}
+
+@media(max-width:380px){
+  .stat-grid{grid-template-columns:1fr;}
+  .voice-btn{width:90px;height:90px;}
+  .voice-ico{font-size:1.9rem;}
+  .th-card{flex-direction:column;text-align:center;}
+}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="auth">
+  <div class="auth-brand">
+    <h1>Traductor de <span style="color:var(--accent2)">Hábitos</span></h1>
+    <p>Tu cuerpo habla. Nosotros lo traducimos.</p>
+  </div>
+  <div class="auth-card">
+    <div class="field">
+      <label>Email</label>
+      <input class="input" id="a-email" type="email" placeholder="tu@email.com">
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <input class="input" id="a-pass" type="password" placeholder="••••••••">
+    </div>
+    <button class="btn-main" id="btn-auth">Ingresar</button>
+    <div class="divider">— o —</div>
+    <button class="btn-google" id="btn-google">🔵 Continuar con Google</button>
+    <div class="auth-switch" id="auth-switch">¿No tenés cuenta? Registrate</div>
+  </div>
+</div>
+
+<!-- DEMO LOCK -->
+<div id="demo-lock">
+  <div class="lock-emoji">🔒</div>
+  <div class="lock-h">Demo finalizada</div>
+  <div class="lock-p">Tu período de prueba gratuito terminó. Contactanos para activar tu cuenta completa y seguir descubriendo tus patrones.</div>
+  <button class="btn-outline" id="btn-contact">📧 Contactar ventas</button>
+</div>
+
+<!-- ADMIN -->
+<div id="admin">
+  <div class="admin-card">
+    <div class="admin-h">⚙️ Panel Admin — Traductor de Hábitos</div>
+    <div id="admin-list"></div>
+    <button class="btn-close" id="btn-close-admin">Cerrar</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header>
+    <div class="logo" id="logo-tap">Traductor de <span>Hábitos</span></div>
+    <div class="h-right">
+      <span class="demo-pill" id="demo-pill" style="display:none">DEMO</span>
+      <button class="icon-btn" id="btn-theme">🌙</button>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="hoy">🏠 Hoy</button>
+    <button class="tab" data-tab="registrar">🎤 Registrar</button>
+    <button class="tab" data-tab="descubrimientos">🔍 Descubrir</button>
+    <button class="tab" data-tab="huella">🧬 Mi Huella</button>
+    <button class="tab" data-tab="perfil">👤 Perfil</button>
+  </div>
+
+  <main>
+    <!-- HOY -->
+    <div id="tab-hoy">
+      <div class="hoy-hero" id="hero-card">
+        <div class="hoy-label">Observación del día</div>
+        <div class="hoy-frase muted" id="hero-frase">Cargando observación...</div>
+      </div>
+
+      <div class="th-card">
+        <div class="th-ring">
+          <svg viewBox="0 0 72 72" width="72" height="72">
+            <circle class="track" cx="36" cy="36" r="30" />
+            <circle class="fill" id="th-arc" cx="36" cy="36" r="30"
+              stroke-dasharray="188.5" stroke-dashoffset="188.5"/>
+          </svg>
+          <div class="th-num" id="th-num">—</div>
+        </div>
+        <div class="th-info">
+          <div class="th-title">Índice TH esta semana</div>
+          <div class="th-val" id="th-desc">Registrá hábitos para calcular tu coherencia.</div>
+        </div>
+      </div>
+
+      <div class="sec-title">Últimos descubrimientos</div>
+      <div id="home-discoveries"></div>
+    </div>
+
+    <!-- REGISTRAR -->
+    <div id="tab-registrar" style="display:none">
+      <div class="reg-voice">
+        <div class="voice-wrap">
+          <div class="voice-btn" id="voice-btn">
+            <div class="voice-pulse"></div>
+            <span class="voice-ico">🎙️</span>
+          </div>
+        </div>
+        <div class="voice-hint" id="voice-hint">Tocá para registrar por voz</div>
+
+        <div class="cat-chips">
+          <div class="chip on" data-cat="auto">🤖 Auto</div>
+          <div class="chip" data-cat="alimentacion">🍽️ Comida</div>
+          <div class="chip" data-cat="pulso">❤️ Pulso</div>
+          <div class="chip" data-cat="sueno">😴 Sueño</div>
+          <div class="chip" data-cat="animo">🌡️ Ánimo</div>
+          <div class="chip" data-cat="actividad">🏃 Actividad</div>
+          <div class="chip" data-cat="peso">⚖️ Peso</div>
+          <div class="chip" data-cat="glucemia">🩸 Glucemia</div>
+        </div>
+
+        <div class="transcript muted" id="transcript">Lo que digas aparece acá...</div>
+      </div>
+
+      <div class="reg-fields">
+        <div>
+          <div class="field-label">O escribí directamente</div>
+          <div class="field-row">
+            <input class="input" id="manual-in" placeholder="Ej: Cené verduras a las 20, pulso 58...">
+            <button class="btn-save" id="btn-save">Guardar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec-title">Últimos registros</div>
+      <div class="rec-list" id="rec-list">
+        <div class="empty-state">Todavía no hay registros.<br>¡Empezá hablando o escribiendo!</div>
+      </div>
+    </div>
+
+    <!-- DESCUBRIMIENTOS -->
+    <div id="tab-descubrimientos" style="display:none">
+      <div class="disc-header">
+        <div class="sec-title" style="margin:0">Motor de descubrimientos</div>
+        <button class="btn-analizar" id="btn-analizar">✨ Analizar ahora</button>
+      </div>
+      <div class="insight-filter" id="insight-filter">
+        <button class="filter-btn on" data-filter="all">Todos</button>
+        <button class="filter-btn" data-filter="COMPARACIÓN">Comparaciones</button>
+        <button class="filter-btn" data-filter="PATRÓN">Patrones</button>
+        <button class="filter-btn" data-filter="TENDENCIA">Tendencias</button>
+        <button class="filter-btn" data-filter="SUGERENCIA">Sugerencias</button>
+      </div>
+      <div id="disc-container">
+        <div class="empty-state">Presioná <strong>Analizar ahora</strong> para que el motor<br>cruce tus registros y encuentre patrones.</div>
+      </div>
+    </div>
+
+    <!-- MI HUELLA -->
+    <div id="tab-huella" style="display:none">
+      <div class="huella-header">
+        <h2>Mi Huella Biológica</h2>
+        <p>Tu perfil dinámico. Crece con cada registro.</p>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-lbl">Total registros</div><div class="stat-val" id="s-total">0</div><div class="stat-unit">acumulados</div></div>
+        <div class="stat-card"><div class="stat-lbl">Días activos</div><div class="stat-val" id="s-dias">0</div><div class="stat-unit">últimos 30 días</div></div>
+        <div class="stat-card"><div class="stat-lbl">Hábito + frecuente</div><div class="stat-val" id="s-top" style="font-size:.95rem;margin-top:.15rem">—</div><div class="stat-unit">categoría</div></div>
+        <div class="stat-card"><div class="stat-lbl">Último pulso</div><div class="stat-val" id="s-pulso">—</div><div class="stat-unit">bpm</div></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-title">Registros por día — últimos 7 días</div>
+        <div class="bar-chart" id="bar-chart"></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-title">Distribución por categoría</div>
+        <div id="cat-dist"></div>
+      </div>
+
+      <div style="margin-bottom:.65rem"><div class="sec-title">Hoja de ruta</div></div>
+      <div id="fases"></div>
+    </div>
+
+    <!-- PERFIL -->
+    <div id="tab-perfil" style="display:none">
+      <div class="prof-card">
+        <div class="prof-avatar">🦅</div>
+        <div class="prof-name" id="prof-name">Usuario</div>
+        <div class="prof-email" id="prof-email"></div>
+        <div class="toggle-row">
+          <span class="toggle-lbl">Modo oscuro</span>
+          <div class="tog on" id="tog-theme"><div class="tog-dot"></div></div>
+        </div>
+      </div>
+      <div class="legal-card">
+        <div class="sec-title" style="margin-bottom:.5rem">Aviso legal importante</div>
+        <div class="legal-text">
+          <strong>Traductor de Hábitos</strong> es una herramienta de observación y comparación de hábitos personales. <strong>No reemplaza el diagnóstico, el consejo ni el tratamiento médico profesional.</strong> Los insights generados son observaciones comparativas basadas en tus propios registros, no evaluaciones de salud. Ante cualquier duda de salud, consultá siempre a un profesional médico habilitado.
+        </div>
+      </div>
+      <button class="btn-logout" id="btn-logout">Cerrar sesión</button>
+    </div>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ==============================
+// FIREBASE CONFIG
+// ==============================
+const fbConfig = {
+  apiKey: "AIzaSyBnfMc0bRWkcKOLerZBWa21f0MrtKoDhVE",
+  authDomain: "traductor-habitos.firebaseapp.com",
+  projectId: "traductor-habitos",
+  storageBucket: "traductor-habitos.firebasestorage.app",
+  messagingSenderId: "676258789093",
+  appId: "1:676258789093:web:03bb98c2a706d06632860c"
+};
+firebase.initializeApp(fbConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+// ==============================
+// CONSTANTES
+// ==============================
+const GROQ_KEY   = "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";
+const GROQ_MODEL = "llama-3.1-8b-instant";
+const ADMIN_PIN  = "1990";
+const SALES_EMAIL= "ventas@raventechsapp.com";
+const DEMO_DAYS  = 7;
+
+const CAT_EMOJI = {
+  alimentacion:'🍽️', pulso:'❤️', sueno:'😴', animo:'🌡️',
+  actividad:'🏃', peso:'⚖️', glucemia:'🩸', otro:'📝', auto:'🤖'
+};
+
+// ==============================
+// STATE
+// ==============================
+let user = null, userData = null, records = [], discoveries = [];
+let selCat = 'auto', logoTaps = 0, logoTimer = null;
+let isLight = false, isReg = false, activeFilter = 'all';
+
+// ==============================
+// UTILS
+// ==============================
+function toast(msg, ms=2500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('on');
+  setTimeout(() => el.classList.remove('on'), ms);
+}
+
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})
+    + ' · ' + d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
+}
+
+function catEmoji(c){ return CAT_EMOJI[c] || '📝'; }
+
+async function groq(messages, max=600) {
+  const r = await fetch('https://api.groq.com/openai/v1/chat/completions',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':`Bearer ${GROQ_KEY}`},
+    body: JSON.stringify({model:GROQ_MODEL,max_tokens:max,temperature:.55,messages})
+  });
+  if (!r.ok) throw new Error('Groq '+r.status);
+  const d = await r.json();
+  return d.choices[0].message.content;
+}
+
+// ==============================
+// THEME
+// ==============================
+function applyTheme(light) {
+  isLight = light;
+  document.body.classList.toggle('light', light);
+  document.getElementById('btn-theme').textContent = light ? '☀️' : '🌙';
+  const t = document.getElementById('tog-theme');
+  if(t) { t.classList.toggle('on', !light); }
+  localStorage.setItem('th-theme', light ? 'light' : 'dark');
+}
+document.getElementById('btn-theme').addEventListener('click', () => applyTheme(!isLight));
+document.getElementById('tog-theme').addEventListener('click', () => applyTheme(!isLight));
+if (localStorage.getItem('th-theme') === 'light') applyTheme(true);
+
+// ==============================
+// AUTH
+// ==============================
+document.getElementById('auth-switch').addEventListener('click', () => {
+  isReg = !isReg;
+  document.getElementById('auth-switch').textContent = isReg
+    ? '¿Ya tenés cuenta? Ingresá' : '¿No tenés cuenta? Registrate';
+  document.getElementById('btn-auth').textContent = isReg ? 'Registrarse' : 'Ingresar';
+});
+
+document.getElementById('btn-auth').addEventListener('click', async () => {
+  const e = document.getElementById('a-email').value.trim();
+  const p = document.getElementById('a-pass').value;
+  if (!e || !p) return toast('Completá email y contraseña');
+  try {
+    isReg ? await auth.createUserWithEmailAndPassword(e,p)
+           : await auth.signInWithEmailAndPassword(e,p);
+  } catch(err){ toast('Error: '+err.message); }
+});
+
+document.getElementById('btn-google').addEventListener('click', async () => {
+  try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
+  catch(e){ toast('Error Google: '+e.message); }
+});
+
+document.getElementById('btn-logout').addEventListener('click', () => auth.signOut());
+
+auth.onAuthStateChanged(async u => {
+  if (u) {
+    user = u;
+    await ensureUserDoc(u);
+    await loadUserData(u);
+    document.getElementById('auth').style.display = 'none';
+    document.getElementById('app').classList.add('on');
+    document.getElementById('prof-name').textContent = u.displayName || 'Usuario';
+    document.getElementById('prof-email').textContent = u.email;
+    checkDemo();
+    await loadRecords();
+    loadHomeTab();
+  } else {
+    user = null;
+    document.getElementById('auth').style.display = 'flex';
+    document.getElementById('app').classList.remove('on');
+  }
+});
+
+async function ensureUserDoc(u) {
+  const ref = db.collection('users').doc(u.uid);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    await ref.set({
+      email: u.email,
+      status: 'demo',
+      demoStart: firebase.firestore.FieldValue.serverTimestamp(),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }
+}
+
+async function loadUserData(u) {
+  const s = await db.collection('users').doc(u.uid).get();
+  userData = s.data();
+}
+
+function checkDemo() {
+  if (!userData) return;
+  if (userData.status === 'active') return;
+  document.getElementById('demo-pill').style.display = 'inline-block';
+  if (userData.status === 'demo') {
+    const start = userData.demoStart?.toDate() || new Date();
+    const diff = (Date.now() - start.getTime()) / 86400000;
+    if (diff > DEMO_DAYS) document.getElementById('demo-lock').classList.add('on');
+  }
+}
+
+document.getElementById('btn-contact').addEventListener('click', () => {
+  window.location.href = `mailto:${SALES_EMAIL}?subject=Activar%20Traductor%20de%20H%C3%A1bitos&body=Hola%2C%20quiero%20activar%20mi%20cuenta.%0AEmail%3A%20${user?.email}`;
+});
+
+// ==============================
+// LOGO → ADMIN
+// ==============================
+document.getElementById('logo-tap').addEventListener('click', () => {
+  logoTaps++;
+  clearTimeout(logoTimer);
+  logoTimer = setTimeout(() => logoTaps = 0, 2000);
+  if (logoTaps >= 5) {
+    logoTaps = 0;
+    const pin = prompt('PIN Admin:');
+    if (pin === ADMIN_PIN) openAdmin();
+    else if (pin !== null) toast('PIN incorrecto');
+  }
+});
+
+async function openAdmin() {
+  const snap = await db.collection('users').get();
+  const list = document.getElementById('admin-list');
+  list.innerHTML = '';
+  snap.forEach(doc => {
+    const d = doc.data();
+    const row = document.createElement('div');
+    row.className = 'admin-row';
+    row.innerHTML = `
+      <div>
+        <div style="font-size:.8rem;font-weight:600">${d.email||doc.id}</div>
+        <div class="admin-email">Estado: <strong>${d.status||'demo'}</strong></div>
+      </div>
+      <div class="admin-btns">
+        <button class="btn-xs y" data-uid="${doc.id}" data-a="extend">+7 días</button>
+        <button class="btn-xs g" data-uid="${doc.id}" data-a="activate">Activar</button>
+        <button class="btn-xs r" data-uid="${doc.id}" data-a="revoke">Revocar</button>
+      </div>`;
+    list.appendChild(row);
+  });
+  document.getElementById('admin').classList.add('on');
+}
+
+document.getElementById('admin-list').addEventListener('click', async e => {
+  const btn = e.target.closest('[data-a]');
+  if (!btn) return;
+  const uid = btn.dataset.uid, action = btn.dataset.a;
+  const ref = db.collection('users').doc(uid);
+  if (action === 'activate') { await ref.update({status:'active'}); toast('Activado ✅'); }
+  else if (action === 'revoke') { await ref.update({status:'demo', demoStart: firebase.firestore.Timestamp.fromDate(new Date(0))}); toast('Revocado'); }
+  else if (action === 'extend') {
+    const s = await ref.get();
+    const start = s.data().demoStart?.toDate() || new Date();
+    const ns = new Date(Math.max(start.getTime(), Date.now()) + 7*86400000);
+    await ref.update({demoStart: firebase.firestore.Timestamp.fromDate(ns)});
+    toast('Demo extendida 7 días');
+  }
+  openAdmin();
+});
+
+document.getElementById('btn-close-admin').addEventListener('click', () => {
+  document.getElementById('admin').classList.remove('on');
+});
+
+// ==============================
+// TABS
+// ==============================
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display='none');
+    document.getElementById('tab-'+tab).style.display = '';
+    if (tab === 'huella') renderHuella();
+  });
+});
+
+// ==============================
+// VOICE
+// ==============================
+let recognition = null, isListening = false;
+
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.lang = 'es-AR';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+
+  recognition.onstart = () => {
+    isListening = true;
+    document.getElementById('voice-btn').classList.add('listening');
+    document.getElementById('voice-hint').textContent = 'Escuchando... tocá para detener';
+    const tr = document.getElementById('transcript');
+    tr.textContent = ''; tr.classList.remove('muted');
+  };
+
+  recognition.onresult = e => {
+    let txt = '';
+    for (let i=e.resultIndex; i<e.results.length; i++)
+      txt += e.results[i][0].transcript;
+    document.getElementById('transcript').textContent = txt;
+  };
+
+  recognition.onend = async () => {
+    isListening = false;
+    document.getElementById('voice-btn').classList.remove('listening');
+    const txt = document.getElementById('transcript').textContent.trim();
+    if (txt) { document.getElementById('voice-hint').textContent = 'Procesando...'; await saveRecord(txt); }
+    else {
+      document.getElementById('voice-hint').textContent = 'Tocá para registrar por voz';
+      document.getElementById('transcript').textContent = 'Lo que digas aparece acá...';
+      document.getElementById('transcript').classList.add('muted');
+    }
+  };
+
+  recognition.onerror = e => {
+    isListening = false;
+    document.getElementById('voice-btn').classList.remove('listening');
+    document.getElementById('voice-hint').textContent = 'Error: '+e.error;
+    setTimeout(()=>{ document.getElementById('voice-hint').textContent='Tocá para registrar por voz'; },2500);
+  };
+}
+
+document.getElementById('voice-btn').addEventListener('click', () => {
+  if (!recognition) return toast('Tu navegador no soporta voz');
+  isListening ? recognition.stop() : recognition.start();
+});
+
+// ==============================
+// CATEGORY CHIPS
+// ==============================
+document.querySelectorAll('.chip').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('.chip').forEach(x => x.classList.remove('on'));
+    c.classList.add('on');
+    selCat = c.dataset.cat;
+  });
+});
+
+// ==============================
+// SAVE RECORD
+// ==============================
+document.getElementById('btn-save').addEventListener('click', async () => {
+  const txt = document.getElementById('manual-in').value.trim();
+  if (!txt) return toast('Escribí algo primero');
+  await saveRecord(txt);
+  document.getElementById('manual-in').value = '';
+});
+document.getElementById('manual-in').addEventListener('keydown', async e => {
+  if (e.key==='Enter') { const t=e.target.value.trim(); if(t){await saveRecord(t);e.target.value='';} }
+});
+
+async function saveRecord(text) {
+  if (!user) return;
+  document.getElementById('voice-hint').textContent = 'Clasificando con IA...';
+
+  let category = selCat, processed = text, numericValue = null;
+
+  if (selCat === 'auto') {
+    try {
+      const res = await groq([{role:'user', content:
+        `Sos un clasificador de registros de hábitos. Analizá este texto y devolvé SOLO JSON sin backticks:
+{"category":"alimentacion|pulso|sueno|animo|actividad|peso|glucemia|otro","normalized":"texto normalizado descriptivo","numericValue":null_o_numero,"unit":"unidad si aplica"}
+
+Texto: "${text}"`
+      }], 250);
+      const clean = res.replace(/```json|```/g,'').trim();
+      const p = JSON.parse(clean);
+      category = p.category || 'otro';
+      processed = p.normalized || text;
+      numericValue = p.numericValue || null;
+    } catch(e) { category='otro'; }
+  }
+
+  const now = new Date();
+  await db.collection('users').doc(user.uid).collection('records').add({
+    text: processed, originalText: text, category,
+    numericValue, hour: now.getHours(),
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  document.getElementById('voice-hint').textContent = '✅ Guardado';
+  document.getElementById('transcript').textContent = 'Lo que digas aparece acá...';
+  document.getElementById('transcript').classList.add('muted');
+  setTimeout(()=>{ document.getElementById('voice-hint').textContent='Tocá para registrar por voz'; },2000);
+
+  toast('✅ Registro guardado');
+  await loadRecords();
+  loadHomeTab();
+}
+
+// ==============================
+// LOAD RECORDS
+// ==============================
+async function loadRecords() {
+  if (!user) return;
+  const snap = await db.collection('users').doc(user.uid)
+    .collection('records').orderBy('timestamp','desc').limit(60).get();
+  records = snap.docs.map(d=>({id:d.id,...d.data()}));
+  renderRecords();
+}
+
+function renderRecords() {
+  const el = document.getElementById('rec-list');
+  if (!records.length) {
+    el.innerHTML='<div class="empty-state">Todavía no hay registros.<br>¡Empezá hablando o escribiendo!</div>';
+    return;
+  }
+  el.innerHTML = records.slice(0,20).map(r=>`
+    <div class="rec-item">
+      <div class="rec-ico">${catEmoji(r.category)}</div>
+      <div class="rec-body">
+        <div class="rec-text">${r.text||r.originalText}</div>
+        <div class="rec-meta">${fmtTime(r.timestamp)}</div>
+      </div>
+      <div class="rec-cat c-${r.category||'otro'}">${r.category||'otro'}</div>
+    </div>`).join('');
+}
+
+// ==============================
+// HOME TAB
+// ==============================
+async function loadHomeTab() {
+  // Frase del día
+  if (records.length >= 3) {
+    const recent = records.slice(0,10).map(r=>({text:r.text,cat:r.category,hora:r.hour}));
+    try {
+      const frase = await groq([{role:'user', content:
+        `Basándote en estos registros recientes de un usuario: ${JSON.stringify(recent)}
+Escribí UNA sola frase de observación en español argentino, en primera persona como si fueras un observador neutral.
+NO juzgues, solo observás. Máximo 2 líneas. No uses palabras como "bien", "mal", "correcto", "incorrecto".
+Estilo: "En los últimos registros, tu cuerpo parece..." o "Tu patrón reciente muestra..."
+Devolvé SOLO la frase, sin comillas.`}], 150);
+      document.getElementById('hero-frase').textContent = frase.trim();
+      document.getElementById('hero-frase').classList.remove('muted');
+    } catch(e) {
+      document.getElementById('hero-frase').textContent = 'Seguí registrando para ver tu observación del día.';
+    }
+  } else {
+    document.getElementById('hero-frase').textContent = 'Registrá al menos 3 hábitos para ver tu primera observación.';
+  }
+
+  // TH Index
+  calcTH();
+
+  // Últimos descubrimientos en home
+  const homeDics = document.getElementById('home-discoveries');
+  if (discoveries.length) {
+    homeDics.innerHTML = discoveries.slice(0,2).map(d=>renderDiscCard(d)).join('');
+  } else {
+    homeDics.innerHTML = '<div class="empty-state">Todavía no hay descubrimientos.<br>Andá a <strong>🔍 Descubrir</strong> para analizarlos.</div>';
+  }
+}
+
+function calcTH() {
+  if (records.length < 5) {
+    document.getElementById('th-num').textContent = '—';
+    document.getElementById('th-desc').textContent = 'Necesitás más registros para calcular tu índice.';
+    return;
+  }
+  const now = new Date();
+  const weekAgo = new Date(now - 7*86400000);
+  const weekRecs = records.filter(r=>{
+    const d=r.timestamp?.toDate?r.timestamp.toDate():new Date(r.timestamp||0);
+    return d>=weekAgo;
+  });
+  const cats = new Set(weekRecs.map(r=>r.category)).size;
+  const days = new Set(weekRecs.map(r=>{
+    const d=r.timestamp?.toDate?r.timestamp.toDate():new Date(r.timestamp||0);
+    return d.toDateString();
+  })).size;
+  const score = Math.min(100, Math.round((weekRecs.length*4)+(cats*8)+(days*5)));
+  document.getElementById('th-num').textContent = score;
+  const circ = 2*Math.PI*30;
+  const offset = circ - (circ * score/100);
+  document.getElementById('th-arc').style.strokeDashoffset = offset;
+  const desc = score>=80 ? 'Tus hábitos de esta semana se alinearon favorablemente con tus patrones históricos.'
+    : score>=55 ? 'Tu registro es consistente. Seguí agregando datos para mejorar el análisis.'
+    : 'Registrá más hábitos en más categorías para subir tu índice TH.';
+  document.getElementById('th-desc').textContent = desc;
+}
+
+// ==============================
+// DESCUBRIMIENTOS
+// ==============================
+document.getElementById('btn-analizar').addEventListener('click', runAnalysis);
+
+async function runAnalysis() {
+  if (!user) return;
+  const container = document.getElementById('disc-container');
+  container.innerHTML = '<div class="loading-state"><div class="spinner"></div>Cruzando tus registros...</div>';
+
+  const snap = await db.collection('users').doc(user.uid)
+    .collection('records').orderBy('timestamp','desc').limit(80).get();
+  const recs = snap.docs.map(d=>{
+    const data=d.data();
+    const ts=data.timestamp?.toDate?data.timestamp.toDate():new Date(data.timestamp||0);
+    return {text:data.text||data.originalText, category:data.category, hour:data.hour||ts.getHours(), date:ts.toLocaleDateString('es-AR'), numericValue:data.numericValue};
+  });
+
+  if (recs.length < 4) {
+    container.innerHTML = '<div class="empty-state">Necesitás al menos 4 registros para generar descubrimientos.</div>';
+    return;
+  }
+
+  const prompt = `Sos el motor de descubrimientos de "Traductor de Hábitos", una app que ayuda a las personas a entender sus patrones de comportamiento.
+
+REGISTROS DEL USUARIO (${recs.length} registros):
+${JSON.stringify(recs)}
+
+MISIÓN: Encontrá patrones, comparaciones y tendencias REALES entre los datos. 
+
+REGLAS CRÍTICAS:
+1. NUNCA uses palabras: bien, mal, correcto, incorrecto, deberías, tenés que
+2. NUNCA des consejos médicos ni diagnósticos
+3. Usá lenguaje observador: "parece que", "en tu historial", "tu cuerpo tiende a", "los datos sugieren"
+4. Sé ESPECÍFICO con horas, valores numéricos y fechas cuando existan
+5. Comparaciones concretas: "Los días que X, Y fue Z% mayor/menor"
+6. Español argentino informal
+7. Cada insight debe agregar valor real, no ser genérico
+
+TIPOS permitidos: COMPARACIÓN, PATRÓN, TENDENCIA, SUGERENCIA
+
+Devolvé SOLO un JSON array (sin backticks):
+[
+  {"tipo":"COMPARACIÓN","texto":"texto del insight aquí"},
+  {"tipo":"PATRÓN","texto":"..."},
+  ...
+]
+Generá entre 3 y 5 insights según la cantidad de datos disponibles.`;
+
+  try {
+    const res = await groq([{role:'user',content:prompt}], 900);
+    const clean = res.replace(/```json|```/g,'').trim();
+    discoveries = JSON.parse(clean);
+    await db.collection('users').doc(user.uid).collection('discoveries').add({
+      items: discoveries,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    renderDiscoveries();
+    loadHomeTab();
+  } catch(e) {
+    container.innerHTML = `<div class="empty-state">Error al analizar: ${e.message}</div>`;
+  }
+}
+
+function renderDiscoveries() {
+  const container = document.getElementById('disc-container');
+  const filtered = activeFilter==='all' ? discoveries
+    : discoveries.filter(d=>d.tipo===activeFilter);
+  if (!filtered.length) {
+    container.innerHTML='<div class="empty-state">No hay descubrimientos de ese tipo.</div>';
+    return;
+  }
+  container.innerHTML = filtered.map(d=>renderDiscCard(d)).join('');
+}
+
+function renderDiscCard(d) {
+  return `<div class="disc-card">
+    <div class="disc-tipo">${d.tipo||'INSIGHT'}</div>
+    <div class="disc-text">${d.texto}</div>
+    <div class="disc-nota">⚕️ Observación de hábitos — no reemplaza consulta médica.</div>
+  </div>`;
+}
+
+document.getElementById('insight-filter').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  activeFilter = btn.dataset.filter;
+  if (discoveries.length) renderDiscoveries();
+});
+
+// ==============================
+// MI HUELLA
+// ==============================
+function renderHuella() {
+  const now = new Date();
+  const monthAgo = new Date(now - 30*86400000);
+  const weekAgo  = new Date(now - 7*86400000);
+
+  const monthRecs = records.filter(r=>{
+    const d=r.timestamp?.toDate?r.timestamp.toDate():new Date(r.timestamp||0);
+    return d>=monthAgo;
+  });
+  const weekRecs = records.filter(r=>{
+    const d=r.timestamp?.toDate?r.timestamp.toDate():new Date(r.timestamp||0);
+    return d>=weekAgo;
+  });
+
+  document.getElementById('s-total').textContent = records.length;
+  const days = new Set(monthRecs.map(r=>{
+    const d=r.timestamp?.toDate?r.timestamp.toDate():new Date(r.timestamp||0);
+    return d.toDateString();
+  }));
+  document.getElementById('s-dias').textContent = days.size;
+
+  const catCount={};
+  monthRecs.forEach(r=>{ const c=r.category||'otro'; catCount[c]=(catCount[c]||0)+1; });
+  const top=Object.entries(catCount).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('s-top').textContent = top?`${catEmoji(top[0])} ${top[0]}`:'—';
+
+  const pulsos = records.filter(r=>r.category==='pulso');
+  document.getElementById('s-pulso').textContent = pulsos[0]
+    ? (pulsos[0].numericValue || pulsos[0].text.match(/\d+/)?.[0] || '—') : '—';
+
+  // Bar chart
+  const barEl = document.getElementById('bar-chart');
+  const labels=[], counts=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date(now-i*86400000);
+    labels.push(d.toLocaleDateString('es-AR',{weekday:'short'}));
+    const ds=d.toDateString();
+    counts.push(weekRecs.filter(r=>{
+      const rd=r.timestamp?.toDate?r.timestamp.toDate():new Date(r.timestamp||0);
+      return rd.toDateString()===ds;
+    }).length);
+  }
+  const maxC=Math.max(...counts,1);
+  barEl.innerHTML = counts.map((c,i)=>`
+    <div class="bar-col">
+      <div class="bar" style="height:${Math.round((c/maxC)*100)}%"></div>
+      <div class="bar-lbl">${labels[i]}</div>
+    </div>`).join('');
+
+  // Cat dist
+  const distEl = document.getElementById('cat-dist');
+  const total = monthRecs.length;
+  if (!total) { distEl.innerHTML='<div style="color:var(--text3);font-size:.8rem">Sin datos este mes</div>'; }
+  else {
+    distEl.innerHTML = Object.entries(catCount).sort((a,b)=>b[1]-a[1]).map(([cat,n])=>{
+      const pct=Math.round((n/total)*100);
+      return `<div class="dist-row">
+        <div class="dist-lbl">${catEmoji(cat)} ${cat}</div>
+        <div class="dist-bar-wrap"><div class="dist-bar" style="width:${pct}%"></div></div>
+        <div class="dist-pct">${pct}%</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Fases
+  const fase1Done = records.length >= 10;
+  const fase2Done = discoveries.length >= 3;
+  document.getElementById('fases').innerHTML = `
+    <div class="fase-card">
+      <div class="fase-header">
+        <div class="fase-badge ${fase1Done?'':'inactive'}">FASE 1</div>
+        <div class="fase-name">${fase1Done?'✅':''} Registro de hábitos</div>
+      </div>
+      <div class="fase-desc">Construís tu base de datos personal. Sin IA, solo datos honestos.</div>
+      <div class="fase-items">
+        <div class="fase-item"><div class="fase-dot ${records.filter(r=>r.category==='sueno').length?'':'off'}"></div>Sueño registrado</div>
+        <div class="fase-item"><div class="fase-dot ${records.filter(r=>r.category==='alimentacion').length?'':'off'}"></div>Alimentación registrada</div>
+        <div class="fase-item"><div class="fase-dot ${records.filter(r=>r.category==='pulso').length?'':'off'}"></div>Pulso registrado</div>
+        <div class="fase-item"><div class="fase-dot ${records.filter(r=>r.category==='actividad').length?'':'off'}"></div>Actividad registrada</div>
+        <div class="fase-item"><div class="fase-dot ${records.filter(r=>r.category==='animo').length?'':'off'}"></div>Estado de ánimo registrado</div>
+      </div>
+    </div>
+    <div class="fase-card">
+      <div class="fase-header">
+        <div class="fase-badge ${fase2Done?'':'inactive'}">FASE 2</div>
+        <div class="fase-name">${fase2Done?'✅':''} Motor de descubrimientos</div>
+      </div>
+      <div class="fase-desc">La IA cruza tus datos y encuentra patrones entre tus hábitos.</div>
+      <div class="fase-items">
+        <div class="fase-item"><div class="fase-dot ${discoveries.length?'':'off'}"></div>Primer análisis ejecutado</div>
+        <div class="fase-item"><div class="fase-dot ${discoveries.length>=3?'':'off'}"></div>3+ descubrimientos generados</div>
+      </div>
+    </div>
+    <div class="fase-card">
+      <div class="fase-header">
+        <div class="fase-badge inactive">FASE 3</div>
+        <div class="fase-name">Asistente conversacional</div>
+      </div>
+      <div class="fase-desc">Preguntás: "¿Por qué dormí peor esta semana?" y la app responde con tus propios datos.</div>
+      <div class="fase-items">
+        <div class="fase-item"><div class="fase-dot off"></div>Próximamente</div>
+      </div>
+    </div>
+    <div class="fase-card">
+      <div class="fase-header">
+        <div class="fase-badge inactive">FASE 4</div>
+        <div class="fase-name">Conexión con wearables</div>
+      </div>
+      <div class="fase-desc">Samsung Health · Google Health Connect · Apple Health.</div>
+      <div class="fase-items">
+        <div class="fase-item"><div class="fase-dot off"></div>En desarrollo futuro</div>
+      </div>
+    </div>`;
+}
+</script>
+</body>
+</html>
