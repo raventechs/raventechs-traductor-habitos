@@ -363,6 +363,9 @@ main{flex:1;padding:1.25rem;max-width:600px;margin:0 auto;width:100%;}
 .rec-text{font-size:.83rem;color:var(--text);line-height:1.3;}
 .rec-meta{font-size:.68rem;color:var(--text3);margin-top:.15rem;font-family:var(--mono);}
 .rec-cat{font-size:.67rem;padding:.18rem .45rem;border-radius:5px;font-weight:600;flex-shrink:0;}
+.btn-del-rec{background:none;border:none;cursor:pointer;font-size:1rem;color:var(--text3);flex-shrink:0;padding:.2rem .3rem;border-radius:6px;transition:color .15s,background .15s;}
+.btn-del-rec:hover{color:#e53e3e;background:rgba(229,62,62,.1);}
+.huella-records .sec-title{margin-bottom:.5rem;}
 .c-alimentacion{background:rgba(16,185,129,.12);color:#34D399;}
 .c-sueno{background:rgba(124,58,237,.15);color:#A78BFA;}
 .c-pulso{background:rgba(239,68,68,.12);color:#FCA5A5;}
@@ -748,6 +751,11 @@ main{flex:1;padding:1.25rem;max-width:600px;margin:0 auto;width:100%;}
 
       <div style="margin-bottom:.65rem"><div class="sec-title">Hoja de ruta</div></div>
       <div id="fases"></div>
+
+      <div class="huella-records">
+        <div class="sec-title">Registros recientes</div>
+        <div class="rec-list" id="huella-rec-list"></div>
+      </div>
     </div>
 
     <!-- PERFIL -->
@@ -1161,6 +1169,40 @@ function renderRecords() {
         <div class="rec-meta">${fmtTime(r.timestamp)}</div>
       </div>
       <div class="rec-cat c-${r.category||'otro'}">${r.category||'otro'}</div>
+      <button class="btn-del-rec" onclick="deleteRecord('${r.id}')" title="Borrar registro">🗑️</button>
+    </div>`).join('');
+}
+
+async function deleteRecord(id) {
+  if (!user || !id) return;
+  try {
+    await db.collection('users').doc(user.uid).collection('records').doc(id).delete();
+    records = records.filter(r => r.id !== id);
+    renderRecords();
+    renderHuellaRecords();
+    calcTH();
+    toast('Registro eliminado');
+  } catch(e) {
+    toast('Error al borrar');
+  }
+}
+
+function renderHuellaRecords() {
+  const el = document.getElementById('huella-rec-list');
+  if (!el) return;
+  if (!records.length) {
+    el.innerHTML='<div class="empty-state">Sin registros aún.</div>';
+    return;
+  }
+  el.innerHTML = records.slice(0,50).map(r=>`
+    <div class="rec-item">
+      <div class="rec-ico">${catEmoji(r.category)}</div>
+      <div class="rec-body">
+        <div class="rec-text">${r.text||r.originalText}</div>
+        <div class="rec-meta">${fmtTime(r.timestamp)}</div>
+      </div>
+      <div class="rec-cat c-${r.category||'otro'}">${r.category||'otro'}</div>
+      <button class="btn-del-rec" onclick="deleteRecord('${r.id}')" title="Borrar registro">🗑️</button>
     </div>`).join('');
 }
 
@@ -1437,6 +1479,7 @@ function renderHuella() {
         <div class="fase-item"><div class="fase-dot off"></div>En desarrollo futuro</div>
       </div>
     </div>`;
+  renderHuellaRecords();
 }
 </script>
 
