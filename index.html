@@ -4,195 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Traductor de Hábitos</title>
+<meta name="description" content="Registrá y entendé tus hábitos con IA. Observación personal sin juicios.">
+<meta name="theme-color" content="#1E8C6E">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hábitos TH">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js">
-
-// ==============================
-// ASISTENTE CONVERSACIONAL
-// ==============================
-let chatHistory = [];
-let chatListening = false;
-let chatRecognition = null;
-
-// FAB toggle
-document.getElementById('fab').addEventListener('click', openChat);
-document.getElementById('btn-close-chat').addEventListener('click', closeChat);
-
-function openChat() {
-  document.getElementById('chat-panel').classList.add('open');
-  document.getElementById('fab').classList.add('hidden');
-  if (!chatHistory.length) sendBotWelcome();
-  setTimeout(() => document.getElementById('chat-input').focus(), 400);
-}
-
-function closeChat() {
-  document.getElementById('chat-panel').classList.remove('open');
-  document.getElementById('fab').classList.remove('hidden');
-  if (chatListening && chatRecognition) chatRecognition.stop();
-}
-
-async function sendBotWelcome() {
-  const hour = new Date().getHours();
-  const greet = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
-  const total = records.length;
-  const msg = total >= 3
-    ? `${greet}. Tengo acceso a tus ${total} registros. Podés preguntarme sobre tus patrones de sueño, alimentación, pulso, energía o cualquier hábito que hayas registrado.`
-    : `${greet}. Soy tu asistente de hábitos. Cuando tengas algunos registros cargados, voy a poder analizar tus patrones y responder tus preguntas.`;
-  addBotMsg(msg);
-}
-
-// Sugerencias rápidas
-document.getElementById('chat-sugs').addEventListener('click', e => {
-  const btn = e.target.closest('.sug-btn');
-  if (!btn) return;
-  sendUserMsg(btn.textContent);
-});
-
-// Enviar con botón
-document.getElementById('btn-send').addEventListener('click', () => {
-  const txt = document.getElementById('chat-input').value.trim();
-  if (txt) { sendUserMsg(txt); document.getElementById('chat-input').value = ''; }
-});
-
-// Enviar con Enter
-document.getElementById('chat-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') {
-    const txt = e.target.value.trim();
-    if (txt) { sendUserMsg(txt); e.target.value = ''; }
-  }
-});
-
-// Voz en chat
-if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  chatRecognition = new SR();
-  chatRecognition.lang = 'es-AR';
-  chatRecognition.continuous = false;
-  chatRecognition.interimResults = false;
-
-  chatRecognition.onstart = () => {
-    chatListening = true;
-    document.getElementById('btn-voice-chat').classList.add('listening');
-    document.getElementById('chat-input').placeholder = 'Escuchando...';
-  };
-  chatRecognition.onresult = e => {
-    const txt = e.results[0][0].transcript.trim();
-    document.getElementById('chat-input').value = txt;
-  };
-  chatRecognition.onend = () => {
-    chatListening = false;
-    document.getElementById('btn-voice-chat').classList.remove('listening');
-    document.getElementById('chat-input').placeholder = 'Preguntame sobre tus hábitos...';
-    const txt = document.getElementById('chat-input').value.trim();
-    if (txt) { sendUserMsg(txt); document.getElementById('chat-input').value = ''; }
-  };
-  chatRecognition.onerror = () => {
-    chatListening = false;
-    document.getElementById('btn-voice-chat').classList.remove('listening');
-    document.getElementById('chat-input').placeholder = 'Preguntame sobre tus hábitos...';
-  };
-}
-
-document.getElementById('btn-voice-chat').addEventListener('click', () => {
-  if (!chatRecognition) return toast('Tu navegador no soporta voz');
-  chatListening ? chatRecognition.stop() : chatRecognition.start();
-});
-
-// ---- Funciones de chat ----
-function sendUserMsg(text) {
-  addMsg('user', text);
-  chatHistory.push({ role: 'user', content: text });
-  showTyping();
-  askAssistant(text);
-}
-
-function addMsg(role, text) {
-  const el = document.createElement('div');
-  el.className = `msg ${role}`;
-  const now = new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-  el.innerHTML = `
-    <div class="msg-bubble">${text}</div>
-    <div class="msg-time">${now}</div>`;
-  document.getElementById('chat-messages').appendChild(el);
-  scrollChat();
-}
-
-function addBotMsg(text) {
-  removeTyping();
-  addMsg('bot', text);
-  chatHistory.push({ role: 'assistant', content: text });
-}
-
-function showTyping() {
-  removeTyping();
-  const el = document.createElement('div');
-  el.className = 'msg bot msg-typing';
-  el.id = 'typing-indicator';
-  el.innerHTML = `<div class="msg-bubble">
-    <div class="dot-typing"></div>
-    <div class="dot-typing"></div>
-    <div class="dot-typing"></div>
-  </div>`;
-  document.getElementById('chat-messages').appendChild(el);
-  scrollChat();
-}
-
-function removeTyping() {
-  const t = document.getElementById('typing-indicator');
-  if (t) t.remove();
-}
-
-function scrollChat() {
-  const m = document.getElementById('chat-messages');
-  setTimeout(() => m.scrollTop = m.scrollHeight, 50);
-}
-
-async function askAssistant(question) {
-  // Preparar contexto de registros
-  const recsContext = records.slice(0, 80).map(r => {
-    const ts = r.timestamp?.toDate ? r.timestamp.toDate() : new Date(r.timestamp || 0);
-    return {
-      categoria: r.category,
-      texto: r.text || r.originalText,
-      valor: r.numericValue,
-      hora: r.hour ?? ts.getHours(),
-      fecha: ts.toLocaleDateString('es-AR', {weekday:'short', day:'2-digit', month:'2-digit'})
-    };
-  });
-
-  const systemPrompt = `Sos el asistente conversacional de "Traductor de Hábitos". Tu rol es analizar los datos personales del usuario y responder sus preguntas de forma observadora, empática y específica.
-
-DATOS DEL USUARIO (${recsContext.length} registros recientes):
-${JSON.stringify(recsContext)}
-
-REGLAS CRÍTICAS:
-1. NUNCA uses: bien, mal, correcto, incorrecto, deberías, tenés que, te recomiendo médicamente
-2. Siempre hablás en base a los datos reales del usuario
-3. Si no hay datos suficientes para responder, lo decís claramente
-4. Usá lenguaje observador: "en tu historial", "tus datos muestran", "parece que", "tu cuerpo tiende a"
-5. Sé específico con fechas, horas y valores cuando existan en los datos
-6. Comparaciones concretas cuando sea posible
-7. Español argentino informal, cálido pero preciso
-8. Máximo 3-4 oraciones por respuesta, directo al punto
-9. Al final de cada respuesta que involucre salud, agregá una línea pequeña recordando que es solo una observación de hábitos`;
-
-  const messages = [
-    { role: 'user', content: systemPrompt },
-    { role: 'assistant', content: 'Entendido. Estoy listo para analizar los datos y responder con observaciones basadas únicamente en los registros del usuario.' },
-    ...chatHistory.slice(-8) // últimas 4 interacciones para contexto
-  ];
-
-  try {
-    const response = await groq(messages, 350);
-    addBotMsg(response.trim());
-  } catch(e) {
-    removeTyping();
-    addBotMsg('No pude conectarme en este momento. Intentá de nuevo en unos segundos.');
-  }
-}
-
-</script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 <style>
@@ -828,6 +648,12 @@ function toast(msg, ms=2500) {
   setTimeout(() => el.classList.remove('on'), ms);
 }
 
+function sanitizeHTML(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 function fmtTime(ts) {
   if (!ts) return '';
   const d = ts.toDate ? ts.toDate() : new Date(ts);
@@ -1150,7 +976,7 @@ Texto: "${text}"`
 async function loadRecords() {
   if (!user) return;
   const snap = await db.collection('users').doc(user.uid)
-    .collection('records').orderBy('timestamp','desc').limit(60).get();
+    .collection('records').orderBy('timestamp','desc').limit(100).get();
   records = snap.docs.map(d=>({id:d.id,...d.data()}));
   renderRecords();
 }
@@ -1165,10 +991,10 @@ function renderRecords() {
     <div class="rec-item">
       <div class="rec-ico">${catEmoji(r.category)}</div>
       <div class="rec-body">
-        <div class="rec-text">${r.text||r.originalText}</div>
+        <div class="rec-text">${sanitizeHTML(r.text||r.originalText||'')}</div>
         <div class="rec-meta">${fmtTime(r.timestamp)}</div>
       </div>
-      <div class="rec-cat c-${r.category||'otro'}">${r.category||'otro'}</div>
+      <div class="rec-cat c-${r.category||'otro'}">${sanitizeHTML(r.category||'otro')}</div>
       <button class="btn-del-rec" onclick="deleteRecord('${r.id}')" title="Borrar registro">🗑️</button>
     </div>`).join('');
 }
@@ -1198,10 +1024,10 @@ function renderHuellaRecords() {
     <div class="rec-item">
       <div class="rec-ico">${catEmoji(r.category)}</div>
       <div class="rec-body">
-        <div class="rec-text">${r.text||r.originalText}</div>
+        <div class="rec-text">${sanitizeHTML(r.text||r.originalText||'')}</div>
         <div class="rec-meta">${fmtTime(r.timestamp)}</div>
       </div>
-      <div class="rec-cat c-${r.category||'otro'}">${r.category||'otro'}</div>
+      <div class="rec-cat c-${r.category||'otro'}">${sanitizeHTML(r.category||'otro')}</div>
       <button class="btn-del-rec" onclick="deleteRecord('${r.id}')" title="Borrar registro">🗑️</button>
     </div>`).join('');
 }
@@ -1346,8 +1172,8 @@ function renderDiscoveries() {
 
 function renderDiscCard(d) {
   return `<div class="disc-card">
-    <div class="disc-tipo">${d.tipo||'INSIGHT'}</div>
-    <div class="disc-text">${d.texto}</div>
+    <div class="disc-tipo">${sanitizeHTML(d.tipo||'INSIGHT')}</div>
+    <div class="disc-text">${sanitizeHTML(d.texto||'')}</div>
     <div class="disc-nota">⚕️ Observación de hábitos — no reemplaza consulta médica.</div>
   </div>`;
 }
@@ -1517,5 +1343,185 @@ function renderHuella() {
     <button class="btn-send" id="btn-send">➤</button>
   </div>
 </div>
+
+<script>
+// ==============================
+// ASISTENTE CONVERSACIONAL
+// ==============================
+let chatHistory = [];
+let chatListening = false;
+let chatRecognition = null;
+
+document.getElementById('fab').addEventListener('click', openChat);
+document.getElementById('btn-close-chat').addEventListener('click', closeChat);
+
+function openChat() {
+  document.getElementById('chat-panel').classList.add('open');
+  document.getElementById('fab').classList.add('hidden');
+  if (!chatHistory.length) sendBotWelcome();
+  setTimeout(() => document.getElementById('chat-input').focus(), 400);
+}
+
+function closeChat() {
+  document.getElementById('chat-panel').classList.remove('open');
+  document.getElementById('fab').classList.remove('hidden');
+  if (chatListening && chatRecognition) chatRecognition.stop();
+}
+
+async function sendBotWelcome() {
+  const hour = new Date().getHours();
+  const greet = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
+  const total = records.length;
+  const msg = total >= 3
+    ? `${greet}. Tengo acceso a tus ${total} registros. Podés preguntarme sobre tus patrones de sueño, alimentación, pulso, energía o cualquier hábito que hayas registrado.`
+    : `${greet}. Soy tu asistente de hábitos. Cuando tengas algunos registros cargados, voy a poder analizar tus patrones y responder tus preguntas.`;
+  addBotMsg(msg);
+}
+
+document.getElementById('chat-sugs').addEventListener('click', e => {
+  const btn = e.target.closest('.sug-btn');
+  if (!btn) return;
+  sendUserMsg(btn.textContent);
+});
+
+document.getElementById('btn-send').addEventListener('click', () => {
+  const txt = document.getElementById('chat-input').value.trim();
+  if (txt) { sendUserMsg(txt); document.getElementById('chat-input').value = ''; }
+});
+
+document.getElementById('chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const txt = e.target.value.trim();
+    if (txt) { sendUserMsg(txt); e.target.value = ''; }
+  }
+});
+
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  chatRecognition = new SR();
+  chatRecognition.lang = 'es-AR';
+  chatRecognition.continuous = false;
+  chatRecognition.interimResults = false;
+  chatRecognition.onstart = () => {
+    chatListening = true;
+    document.getElementById('btn-voice-chat').classList.add('listening');
+    document.getElementById('chat-input').placeholder = 'Escuchando...';
+  };
+  chatRecognition.onresult = e => {
+    const txt = e.results[0][0].transcript.trim();
+    document.getElementById('chat-input').value = txt;
+  };
+  chatRecognition.onend = () => {
+    chatListening = false;
+    document.getElementById('btn-voice-chat').classList.remove('listening');
+    document.getElementById('chat-input').placeholder = 'Preguntame sobre tus hábitos...';
+    const txt = document.getElementById('chat-input').value.trim();
+    if (txt) { sendUserMsg(txt); document.getElementById('chat-input').value = ''; }
+  };
+  chatRecognition.onerror = () => {
+    chatListening = false;
+    document.getElementById('btn-voice-chat').classList.remove('listening');
+    document.getElementById('chat-input').placeholder = 'Preguntame sobre tus hábitos...';
+  };
+}
+
+document.getElementById('btn-voice-chat').addEventListener('click', () => {
+  if (!chatRecognition) return toast('Tu navegador no soporta voz');
+  chatListening ? chatRecognition.stop() : chatRecognition.start();
+});
+
+function sendUserMsg(text) {
+  addMsg('user', text);
+  chatHistory.push({ role: 'user', content: text });
+  showTyping();
+  askAssistant(text);
+}
+
+function addMsg(role, text) {
+  const el = document.createElement('div');
+  el.className = `msg ${role}`;
+  const now = new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.textContent = text;
+  const time = document.createElement('div');
+  time.className = 'msg-time';
+  time.textContent = now;
+  el.appendChild(bubble);
+  el.appendChild(time);
+  document.getElementById('chat-messages').appendChild(el);
+  scrollChat();
+}
+
+function addBotMsg(text) {
+  removeTyping();
+  addMsg('bot', text);
+  chatHistory.push({ role: 'assistant', content: text });
+}
+
+function showTyping() {
+  removeTyping();
+  const el = document.createElement('div');
+  el.className = 'msg bot msg-typing';
+  el.id = 'typing-indicator';
+  el.innerHTML = `<div class="msg-bubble"><div class="dot-typing"></div><div class="dot-typing"></div><div class="dot-typing"></div></div>`;
+  document.getElementById('chat-messages').appendChild(el);
+  scrollChat();
+}
+
+function removeTyping() {
+  const t = document.getElementById('typing-indicator');
+  if (t) t.remove();
+}
+
+function scrollChat() {
+  const m = document.getElementById('chat-messages');
+  setTimeout(() => m.scrollTop = m.scrollHeight, 50);
+}
+
+async function askAssistant(question) {
+  const recsContext = records.slice(0, 80).map(r => {
+    const ts = r.timestamp?.toDate ? r.timestamp.toDate() : new Date(r.timestamp || 0);
+    return {
+      categoria: r.category,
+      texto: r.text || r.originalText,
+      valor: r.numericValue,
+      hora: r.hour ?? ts.getHours(),
+      fecha: ts.toLocaleDateString('es-AR', {weekday:'short', day:'2-digit', month:'2-digit'})
+    };
+  });
+
+  const systemPrompt = `Sos el asistente conversacional de "Traductor de Hábitos". Tu rol es analizar los datos personales del usuario y responder sus preguntas de forma observadora, empática y específica.
+
+DATOS DEL USUARIO (${recsContext.length} registros recientes):
+${JSON.stringify(recsContext)}
+
+REGLAS CRÍTICAS:
+1. NUNCA uses: bien, mal, correcto, incorrecto, deberías, tenés que, te recomiendo médicamente
+2. Siempre hablás en base a los datos reales del usuario
+3. Si no hay datos suficientes para responder, lo decís claramente
+4. Usá lenguaje observador: "en tu historial", "tus datos muestran", "parece que", "tu cuerpo tiende a"
+5. Sé específico con fechas, horas y valores cuando existan en los datos
+6. Comparaciones concretas cuando sea posible
+7. Español argentino informal, cálido pero preciso
+8. Máximo 3-4 oraciones por respuesta, directo al punto
+9. Al final de cada respuesta que involucre salud, agregá una línea pequeña recordando que es solo una observación de hábitos`;
+
+  const messages = [
+    { role: 'user', content: systemPrompt },
+    { role: 'assistant', content: 'Entendido. Estoy listo para analizar los datos y responder con observaciones basadas únicamente en los registros del usuario.' },
+    ...chatHistory.slice(-8)
+  ];
+
+  try {
+    const response = await groq(messages, 350);
+    addBotMsg(response.trim());
+  } catch(e) {
+    removeTyping();
+    addBotMsg('No pude conectarme en este momento. Intentá de nuevo en unos segundos.');
+  }
+}
+</script>
+
 </body>
 </html>
