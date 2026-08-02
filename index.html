@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Traductor de Hábitos</title>
+<meta name="theme-color" content="#E67E22">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Traductor de Hábitos">
+<link rel="manifest" href="manifest.json">
 <meta name="description" content="Registrá y entendé tus hábitos con IA. Observación personal sin juicios.">
 <meta name="theme-color" content="#1E8C6E">
 <meta name="mobile-web-app-capable" content="yes">
@@ -1523,5 +1528,12 @@ REGLAS CRÍTICAS:
 }
 </script>
 
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js').catch(function(e){console.log('SW:',e);});
+  });
+}
+</script>
 </body>
 </html>
