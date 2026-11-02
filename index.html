@@ -1,3 +1,18 @@
+<!--
+  ARCHIVO: index.html
+  VERSIÓN: v2.0
+  FECHA: 02/11/2026
+  PROYECTO: RavenTechs — Traductor de Hábitos
+  CHANGELOG:
+  - v2.0 (02/11/2026): estándar RavenTechs. La clave de Groq sale del código (la IA pasa por un servidor intermedio, IA_URL);
+    sin PIN fijo (el menú oculto abre solo con la cuenta admin); prueba gratis de 14 días con cartel y pantalla de bloqueo con WhatsApp;
+    menú admin con botones (+7 días, +30 días, Pasar a cliente); Modo Práctica; backup diario, descargar y restaurar;
+    registro de errores; instructivo; ícono nuevo; login con Google primero; banner de instalación; service worker "red primero".
+  - v1.x: versión original (registro por voz, descubrimientos, Mi Huella, asistente).
+  PENDIENTE:
+  - Completar IA_URL con la dirección del Worker de Cloudflare (hasta entonces la IA muestra un aviso y la app sigue funcionando)
+  - Publicar qa/rules/habitos.rules (repo gasar) en Firebase, proyecto traductor-habitos
+-->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -8,7 +23,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Traductor de Hábitos">
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-512-apple-180.png">
 <meta name="description" content="Registrá y entendé tus hábitos con IA. Observación personal sin juicios.">
 <meta name="theme-color" content="#1E8C6E">
 <meta name="mobile-web-app-capable" content="yes">
@@ -403,6 +420,12 @@ main{flex:1;padding:1.25rem;max-width:600px;margin:0 auto;width:100%;}
   font-family:var(--sans); transition:all .2s; flex-shrink:0;
 }
 .sug-btn:hover { border-color:var(--accent); color:var(--accent2); }
+.demo-pill.urgente{background:rgba(239,68,68,.15);color:#ef4444;border-color:rgba(239,68,68,.4);animation:parpadeo 1s ease-in-out infinite;}
+@keyframes parpadeo{0%,100%{opacity:1}50%{opacity:.35}}
+.bk-row{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.7rem;}
+.bk-row .btn-outline{padding:.6rem 1rem;font-size:.8rem;text-decoration:none;display:inline-block;}
+#install-bar{display:none;position:fixed;left:.75rem;right:.75rem;bottom:.75rem;z-index:9000;background:var(--panel);border:1px solid var(--accent);border-radius:12px;padding:.8rem 1rem;align-items:center;justify-content:space-between;gap:.75rem;font-size:.84rem;}
+#install-bar.on{display:flex;}
 </style>
 </head>
 <body>
@@ -414,6 +437,8 @@ main{flex:1;padding:1.25rem;max-width:600px;margin:0 auto;width:100%;}
     <p>Tu cuerpo habla. Nosotros lo traducimos.</p>
   </div>
   <div class="auth-card">
+    <button class="btn-google" id="btn-google">🔵 Continuar con Google</button>
+    <div class="divider">— o con tu email —</div>
     <div class="field">
       <label>Email</label>
       <input class="input" id="a-email" type="email" placeholder="tu@email.com">
@@ -423,8 +448,6 @@ main{flex:1;padding:1.25rem;max-width:600px;margin:0 auto;width:100%;}
       <input class="input" id="a-pass" type="password" placeholder="••••••••">
     </div>
     <button class="btn-main" id="btn-auth">Ingresar</button>
-    <div class="divider">— o —</div>
-    <button class="btn-google" id="btn-google">🔵 Continuar con Google</button>
     <div class="auth-switch" id="auth-switch">¿No tenés cuenta? Registrate</div>
   </div>
 </div>
@@ -432,9 +455,10 @@ main{flex:1;padding:1.25rem;max-width:600px;margin:0 auto;width:100%;}
 <!-- DEMO LOCK -->
 <div id="demo-lock">
   <div class="lock-emoji">🔒</div>
-  <div class="lock-h">Demo finalizada</div>
-  <div class="lock-p">Tu período de prueba gratuito terminó. Contactanos para activar tu cuenta completa y seguir descubriendo tus patrones.</div>
-  <button class="btn-outline" id="btn-contact">📧 Contactar ventas</button>
+  <div class="lock-h">Tu prueba gratis terminó</div>
+  <div class="lock-p">Tus datos están a salvo: al activar tu cuenta sigue todo como lo dejaste. Escribinos y la activamos.</div>
+  <button class="btn-main" id="btn-contact" style="max-width:260px">📲 Activar mi cuenta por WhatsApp</button>
+  <button class="btn-outline" id="btn-lock-bk">📥 Descargar mis datos</button>
 </div>
 
 <!-- ADMIN -->
@@ -600,11 +624,36 @@ main{flex:1;padding:1.25rem;max-width:600px;margin:0 auto;width:100%;}
           <strong>Traductor de Hábitos</strong> es una herramienta de observación y comparación de hábitos personales. <strong>No reemplaza el diagnóstico, el consejo ni el tratamiento médico profesional.</strong> Los insights generados son observaciones comparativas basadas en tus propios registros, no evaluaciones de salud. Ante cualquier duda de salud, consultá siempre a un profesional médico habilitado.
         </div>
       </div>
+      <div class="legal-card">
+        <div class="sec-title" style="margin-bottom:.5rem">Privacidad de la IA</div>
+        <div class="legal-text">Para clasificar tus registros y generar observaciones, el texto que escribís o decís se envía a un servicio de inteligencia artificial, sin tu nombre ni tu email. Tus registros se guardan en tu cuenta y la app no permite que otros usuarios los lean.</div>
+      </div>
+      <div class="legal-card">
+        <div class="sec-title" style="margin-bottom:.5rem">Copia de seguridad</div>
+        <div class="legal-text">La app guarda sola una copia una vez por día al abrirla. Último backup: <strong id="bk-ultimo">todavía no hay</strong></div>
+        <div class="bk-row">
+          <button class="btn-outline" id="btn-bk">📥 Descargar backup</button>
+          <label class="btn-outline" style="cursor:pointer">📤 Restaurar backup<input type="file" id="bk-file" accept=".json,application/json" style="display:none"></label>
+        </div>
+      </div>
+      <div class="legal-card">
+        <div class="sec-title" style="margin-bottom:.5rem">Modo práctica</div>
+        <div class="legal-text">Cargá registros de ejemplo para ver cómo funciona la app. Después los quitás con un toque: tus registros reales no se tocan.</div>
+        <div class="bk-row">
+          <button class="btn-outline" id="btn-prac-on">🎓 Cargar datos de práctica</button>
+          <button class="btn-outline" id="btn-prac-off">🧹 Quitar datos de práctica</button>
+        </div>
+      </div>
+      <div class="legal-card">
+        <div class="sec-title" style="margin-bottom:.5rem">Ayuda</div>
+        <div class="bk-row" style="margin-top:0"><a class="btn-outline" href="/ayuda/" target="_blank" rel="noopener">❓ Instructivo</a></div>
+      </div>
       <button class="btn-logout" id="btn-logout">Cerrar sesión</button>
     </div>
   </main>
 </div>
 
+<div id="install-bar"><span>📲 Instalá Traductor de Hábitos en tu celular</span><span><button class="btn-xs g" id="btn-install">Instalar</button> <button class="btn-xs" id="btn-install-no">Ahora no</button></span></div>
 <div id="toast"></div>
 
 <script>
@@ -626,11 +675,12 @@ const db   = firebase.firestore();
 // ==============================
 // CONSTANTES
 // ==============================
-const GROQ_KEY   = "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";
-const GROQ_MODEL = "llama-3.1-8b-instant";
-const ADMIN_PIN  = "1990";
-const SALES_EMAIL= "ventas@raventechsapp.com";
-const DEMO_DAYS  = 7;
+const APP_VERSION = '2.0';
+const ADMIN_EMAIL = 'rgaraventa@gmail.com';
+const WA_NUM      = '5491136547592';
+const DEMO_DIAS   = 14;
+/* La clave de IA ya NO está en la app: vive en el servidor intermedio (Cloudflare Worker). Completar IA_URL con su dirección. */
+const IA_URL      = "";
 
 const CAT_EMOJI = {
   alimentacion:'🍽️', pulso:'❤️', sueno:'😴', animo:'🌡️',
@@ -669,12 +719,14 @@ function fmtTime(ts) {
 function catEmoji(c){ return CAT_EMOJI[c] || '📝'; }
 
 async function groq(messages, max=600) {
-  const r = await fetch('https://api.groq.com/openai/v1/chat/completions',{
+  if (!IA_URL) throw new Error('La IA no está disponible por ahora');
+  const idToken = await auth.currentUser.getIdToken();
+  const r = await fetch(IA_URL,{
     method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${GROQ_KEY}`},
-    body: JSON.stringify({model:GROQ_MODEL,max_tokens:max,temperature:.55,messages})
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+idToken},
+    body: JSON.stringify({max_tokens:max,temperature:.55,messages})
   });
-  if (!r.ok) throw new Error('Groq '+r.status);
+  if (!r.ok) throw new Error('IA '+r.status);
   const d = await r.json();
   return d.choices[0].message.content;
 }
@@ -733,6 +785,7 @@ auth.onAuthStateChanged(async u => {
     checkDemo();
     await loadRecords();
     loadHomeTab();
+    chequearBackupDiario();
   } else {
     user = null;
     document.getElementById('auth').style.display = 'flex';
@@ -748,6 +801,7 @@ async function ensureUserDoc(u) {
       email: u.email,
       status: 'demo',
       demoStart: firebase.firestore.FieldValue.serverTimestamp(),
+      demoHasta: firebase.firestore.Timestamp.fromDate(new Date(Date.now() + DEMO_DIAS*86400000)),
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
   }
@@ -758,20 +812,42 @@ async function loadUserData(u) {
   userData = s.data();
 }
 
+function esAdminCuenta() {
+  return !!(user && user.email === ADMIN_EMAIL && user.emailVerified);
+}
+
+// Fin de la prueba de una cuenta (Date). null = cliente real. Las cuentas viejas (sin demoHasta) cuentan 14 días desde su inicio.
+function finPruebaDe(d) {
+  if (!d || d.status === 'active') return null;
+  if (d.demoHasta && d.demoHasta.toDate) return d.demoHasta.toDate();
+  const ini = d.demoStart && d.demoStart.toDate ? d.demoStart.toDate() : new Date();
+  return new Date(ini.getTime() + DEMO_DIAS*86400000);
+}
+
 function checkDemo() {
-  if (!userData) return;
-  if (userData.status === 'active') return;
-  document.getElementById('demo-pill').style.display = 'inline-block';
-  if (userData.status === 'demo') {
-    const start = userData.demoStart?.toDate() || new Date();
-    const diff = (Date.now() - start.getTime()) / 86400000;
-    if (diff > DEMO_DAYS) document.getElementById('demo-lock').classList.add('on');
+  const pill = document.getElementById('demo-pill');
+  const lock = document.getElementById('demo-lock');
+  if (!userData || esAdminCuenta() || userData.status === 'active') {
+    pill.style.display = 'none'; lock.classList.remove('on'); return;
   }
+  const fin = finPruebaDe(userData);
+  const dias = Math.ceil((fin.getTime() - Date.now()) / 86400000);
+  pill.style.display = 'inline-block';
+  if (dias <= 0) {
+    pill.textContent = 'PRUEBA VENCIDA'; pill.classList.add('urgente');
+    lock.classList.add('on');
+    return;
+  }
+  lock.classList.remove('on');
+  pill.textContent = 'PRUEBA: ' + dias + (dias === 1 ? ' DÍA' : ' DÍAS');
+  pill.classList.toggle('urgente', dias <= 3);
 }
 
 document.getElementById('btn-contact').addEventListener('click', () => {
-  window.location.href = `mailto:${SALES_EMAIL}?subject=Activar%20Traductor%20de%20H%C3%A1bitos&body=Hola%2C%20quiero%20activar%20mi%20cuenta.%0AEmail%3A%20${user?.email}`;
+  const txt = 'Hola RavenTechs, quiero activar mi cuenta de Traductor de Hábitos (' + (user ? user.email : '') + ')';
+  window.open('https://wa.me/' + WA_NUM + '?text=' + encodeURIComponent(txt), '_blank');
 });
+document.getElementById('btn-lock-bk').addEventListener('click', () => generarBackup(false));
 
 // ==============================
 // LOGO → ADMIN
@@ -782,68 +858,276 @@ document.getElementById('logo-tap').addEventListener('click', () => {
   logoTimer = setTimeout(() => logoTaps = 0, 2000);
   if (logoTaps >= 5) {
     logoTaps = 0;
-    const pin = prompt('PIN Admin:');
-    if (pin === ADMIN_PIN) openAdmin();
-    else if (pin !== null) toast('PIN incorrecto');
+    if (esAdminCuenta()) openAdmin();
   }
 });
 
 async function openAdmin() {
+  if (!esAdminCuenta()) return;
   const list = document.getElementById('admin-list');
   list.innerHTML = '<div style="color:var(--text2);font-size:.82rem;padding:.5rem 0">Cargando usuarios...</div>';
   document.getElementById('admin').classList.add('on');
   try {
-    const allDocs = [];
-    // Traer usuario propio siempre
-    const selfSnap = await db.collection('users').doc(user.uid).get();
-    allDocs.push({ id: user.uid, data: selfSnap.data() });
-    // Intentar traer todos (funciona si las reglas lo permiten)
-    try {
-      const snap = await db.collection('users').get();
-      snap.forEach(doc => {
-        if (doc.id !== user.uid) allDocs.push({ id: doc.id, data: doc.data() });
-      });
-    } catch(e) { /* sin permisos para leer todos */ }
-    list.innerHTML = '';
-    allDocs.forEach(({ id, data: d }) => {
+    const snap = await db.collection('users').get();
+    const docs = snap.docs.map(d => ({ id: d.id, data: d.data() }));
+    docs.sort((x, y) => (y.data.createdAt && y.data.createdAt.toMillis ? y.data.createdAt.toMillis() : 0) - (x.data.createdAt && x.data.createdAt.toMillis ? x.data.createdAt.toMillis() : 0));
+    const clientes = docs.filter(x => x.data.status === 'active').length;
+    list.innerHTML = '<div class="admin-email" style="margin-bottom:.4rem">' + docs.length + ' usuarios · ' + clientes + ' clientes · ' + (docs.length - clientes) + ' en prueba</div>';
+    docs.forEach(({ id, data: d }) => {
+      const fin = finPruebaDe(d);
+      let estado;
+      if (!fin) estado = '✅ Cliente';
+      else {
+        const dias = Math.ceil((fin.getTime() - Date.now()) / 86400000);
+        estado = dias > 0 ? '⏳ Prueba: ' + dias + (dias === 1 ? ' día' : ' días') : '⛔ Prueba vencida';
+      }
       const row = document.createElement('div');
       row.className = 'admin-row';
-      row.innerHTML = `
-        <div>
-          <div style="font-size:.8rem;font-weight:600">${d?.email || id}</div>
-          <div class="admin-email">Estado: <strong>${d?.status || 'demo'}</strong></div>
-        </div>
-        <div class="admin-btns">
-          <button class="btn-xs y" data-uid="${id}" data-a="extend">+7 días</button>
-          <button class="btn-xs g" data-uid="${id}" data-a="activate">Activar</button>
-          <button class="btn-xs r" data-uid="${id}" data-a="revoke">Revocar</button>
-        </div>`;
-      list.appendChild(row);
+      const info = document.createElement('div');
+      const em = document.createElement('div'); em.style.cssText = 'font-size:.8rem;font-weight:600'; em.textContent = d.email || id;
+      const st = document.createElement('div'); st.className = 'admin-email'; st.textContent = estado;
+      info.append(em, st);
+      row.append(info);
+      if (fin) {
+        const btns = document.createElement('div'); btns.className = 'admin-btns';
+        [['y', '+7 días', 'e7'], ['y', '+30 días', 'e30'], ['g', '✅ Pasar a cliente', 'act']].forEach(([cls, txt, act]) => {
+          const bt = document.createElement('button'); bt.className = 'btn-xs ' + cls; bt.dataset.uid = id; bt.dataset.a = act; bt.textContent = txt; btns.append(bt);
+        });
+        row.append(btns);
+      }
+      list.append(row);
     });
   } catch(e) {
-    list.innerHTML = `<div style="color:var(--danger);font-size:.8rem">Error: ${e.message}</div>`;
+    list.innerHTML = '<div style="color:var(--danger);font-size:.8rem">Error: ' + sanitizeHTML(e.message) + '</div>';
   }
 }
 
 document.getElementById('admin-list').addEventListener('click', async e => {
   const btn = e.target.closest('[data-a]');
-  if (!btn) return;
+  if (!btn || !esAdminCuenta()) return;
   const uid = btn.dataset.uid, action = btn.dataset.a;
   const ref = db.collection('users').doc(uid);
-  if (action === 'activate') { await ref.update({status:'active'}); toast('Activado ✅'); }
-  else if (action === 'revoke') { await ref.update({status:'demo', demoStart: firebase.firestore.Timestamp.fromDate(new Date(0))}); toast('Revocado'); }
-  else if (action === 'extend') {
-    const s = await ref.get();
-    const start = s.data().demoStart?.toDate() || new Date();
-    const ns = new Date(Math.max(start.getTime(), Date.now()) + 7*86400000);
-    await ref.update({demoStart: firebase.firestore.Timestamp.fromDate(ns)});
-    toast('Demo extendida 7 días');
-  }
+  try {
+    if (action === 'act') {
+      await ref.update({ status: 'active', demoHasta: null });
+      toast('Pasó a cliente ✅');
+    } else {
+      const dias = action === 'e30' ? 30 : 7;
+      const s0 = await ref.get();
+      const fin = finPruebaDe(s0.data());
+      const base = Math.max(fin ? fin.getTime() : 0, Date.now());
+      await ref.update({ status: 'demo', demoHasta: firebase.firestore.Timestamp.fromDate(new Date(base + dias*86400000)) });
+      toast('Prueba extendida ' + dias + ' días');
+    }
+  } catch(err) { toast('Error: ' + err.message); }
   openAdmin();
 });
 
 document.getElementById('btn-close-admin').addEventListener('click', () => {
   document.getElementById('admin').classList.remove('on');
+});
+
+
+// ==============================
+// BACKUP (diario al abrir + descargar + restaurar)
+// ==============================
+const BK_APP = 'Traductor de Hábitos', BK_LS = 'habitos-ultimo-backup';
+const BK_COLECCIONES = ['records', 'discoveries'];
+
+function _bkHoy() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function _bkSer(v) {
+  if (v && typeof v === 'object') {
+    if (typeof v.toMillis === 'function' && 'seconds' in v && 'nanoseconds' in v) return { __ts: [v.seconds, v.nanoseconds] };
+    if (Array.isArray(v)) return v.map(_bkSer);
+    const o = {}; Object.keys(v).forEach(k => { o[k] = _bkSer(v[k]); }); return o;
+  }
+  return v;
+}
+function _bkRev(v) {
+  if (v && typeof v === 'object') {
+    if (Array.isArray(v)) return v.map(_bkRev);
+    if (Array.isArray(v.__ts) && v.__ts.length === 2) return new firebase.firestore.Timestamp(v.__ts[0], v.__ts[1]);
+    const o = {}; Object.keys(v).forEach(k => { o[k] = _bkRev(v[k]); }); return o;
+  }
+  return v;
+}
+function _bkIdb(fecha, json) {
+  return new Promise(function (res) {
+    try {
+      const rq = indexedDB.open('habitos-backup', 1);
+      rq.onupgradeneeded = function () { rq.result.createObjectStore('b', { keyPath: 'fecha' }); };
+      rq.onsuccess = function () {
+        const idb = rq.result, tx = idb.transaction('b', 'readwrite'), st = tx.objectStore('b');
+        st.put({ fecha: fecha, json: json });
+        st.getAllKeys().onsuccess = function (e) { const ks = e.target.result.sort(); while (ks.length > 7) st.delete(ks.shift()); };
+        tx.oncomplete = function () { idb.close(); res(true); };
+        tx.onerror = tx.onabort = function () { idb.close(); res(false); };
+      };
+      rq.onerror = function () { res(false); };
+    } catch (e) { res(false); }
+  });
+}
+function _bkDescargar(json, fecha) {
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'habitos-backup-' + fecha + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+}
+async function generarBackup(silencioso) {
+  if (!user) return;
+  try {
+    if (!silencioso) toast('Preparando backup…');
+    const base = db.collection('users').doc(user.uid);
+    const datos = {};
+    for (const n of BK_COLECCIONES) {
+      const snap = await base.collection(n).get();
+      datos[n] = snap.docs.map(d => Object.assign({ _id: d.id }, _bkSer(d.data())));
+    }
+    const fecha = _bkHoy();
+    const json = JSON.stringify({ app: BK_APP, version: APP_VERSION, fecha: new Date().toISOString(), uid: user.uid, datos: datos });
+    await _bkIdb(fecha, json);
+    _bkDescargar(json, fecha);
+    try { localStorage.setItem(BK_LS, fecha); } catch (e) {}
+    const el = document.getElementById('bk-ultimo'); if (el) el.textContent = fecha;
+    if (!silencioso) toast('✅ Backup descargado');
+  } catch (e) {
+    logError('backup: ' + e.message);
+    if (!silencioso) toast('No se pudo hacer el backup: ' + e.message);
+  }
+}
+async function restaurarBackup(input) {
+  const file = input.files && input.files[0];
+  if (!file || !user) return;
+  try {
+    const bk = JSON.parse(await file.text());
+    if (bk.app !== BK_APP || !bk.datos) { toast('El archivo no es un backup de ' + BK_APP); return; }
+    let total = 0; BK_COLECCIONES.forEach(n => { total += (bk.datos[n] || []).length; });
+    if (!confirm('Se van a restaurar ' + total + ' elementos. Lo que ya tenés no se borra. ¿Seguimos?')) return;
+    const base = db.collection('users').doc(user.uid);
+    let ops = [];
+    BK_COLECCIONES.forEach(n => (bk.datos[n] || []).forEach(r => {
+      const id = r._id; const d = _bkRev(r); delete d._id;
+      if (id) ops.push([base.collection(n).doc(id), d]);
+    }));
+    for (let i = 0; i < ops.length; i += 400) {
+      const batch = db.batch();
+      ops.slice(i, i + 400).forEach(o => batch.set(o[0], o[1], { merge: true }));
+      await batch.commit();
+    }
+    toast('✅ Backup restaurado (' + ops.length + ')');
+    await loadRecords(); loadHomeTab();
+  } catch (e) { logError('restaurar: ' + e.message); toast('No se pudo restaurar: ' + e.message); }
+  input.value = '';
+}
+function chequearBackupDiario() {
+  let ultimo = null; try { ultimo = localStorage.getItem(BK_LS); } catch (e) {}
+  const el = document.getElementById('bk-ultimo'); if (el && ultimo) el.textContent = ultimo;
+  if (ultimo !== _bkHoy()) setTimeout(function () { generarBackup(true); }, 5000);
+}
+document.getElementById('btn-bk').addEventListener('click', () => generarBackup(false));
+document.getElementById('bk-file').addEventListener('change', e => restaurarBackup(e.target));
+
+// ==============================
+// MODO PRÁCTICA (datos de ejemplo marcados _demo:true; nunca toca datos reales)
+// ==============================
+function datosPractica() {
+  const out = [], ahora = new Date();
+  for (let i = 13; i >= 0; i--) {
+    const dia = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - i);
+    const poco = (i % 3 === 0);            // cada tres días duerme poco
+    const horas = poco ? 5.5 : 7.5;
+    const at = (h, m) => { const d = new Date(dia); d.setHours(h, m || 0, 0, 0); return d; };
+    out.push({ text: 'Dormí ' + horas + ' horas', category: 'sueno', numericValue: horas, hour: 7, when: at(7) });
+    out.push({ text: poco ? 'Me sentí cansado y sin energía' : 'Me sentí con energía', category: 'animo', numericValue: null, hour: 9, when: at(9, 10) });
+    out.push({ text: poco ? 'Desayuné solo un café' : 'Desayuné tostadas con huevo y fruta', category: 'alimentacion', numericValue: null, hour: 8, when: at(8, 15) });
+    if (i % 2 === 0) out.push({ text: 'Caminé 30 minutos', category: 'actividad', numericValue: 30, hour: 18, when: at(18) });
+    if (i % 4 === 1) out.push({ text: 'Cené tarde, pizza con gaseosa', category: 'alimentacion', numericValue: null, hour: 22, when: at(22) });
+    out.push({ text: 'Pulso ' + (68 + (i * 3) % 11), category: 'pulso', numericValue: 68 + (i * 3) % 11, hour: 19, when: at(19, 20) });
+  }
+  return out;
+}
+async function cargarPractica() {
+  if (!user) return;
+  try {
+    const col = db.collection('users').doc(user.uid).collection('records');
+    const ya = await col.where('_demo', '==', true).limit(1).get();
+    if (!ya.empty) { toast('Ya cargaste los datos de práctica'); return; }
+    const lista = datosPractica();
+    for (let i = 0; i < lista.length; i += 400) {
+      const batch = db.batch();
+      lista.slice(i, i + 400).forEach(r => {
+        batch.set(col.doc(), {
+          text: r.text, originalText: r.text, category: r.category, numericValue: r.numericValue,
+          hour: r.hour, timestamp: firebase.firestore.Timestamp.fromDate(r.when), _demo: true
+        });
+      });
+      await batch.commit();
+    }
+    toast('🎓 Datos de práctica cargados (' + lista.length + ')');
+    await loadRecords(); loadHomeTab();
+  } catch (e) { logError('practica: ' + e.message); toast('Error: ' + e.message); }
+}
+async function quitarPractica() {
+  if (!user) return;
+  try {
+    let total = 0;
+    for (const n of ['records', 'discoveries']) {
+      const col = db.collection('users').doc(user.uid).collection(n);
+      const snap = await col.where('_demo', '==', true).get();
+      for (let i = 0; i < snap.docs.length; i += 400) {
+        const batch = db.batch();
+        snap.docs.slice(i, i + 400).forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+      total += snap.docs.length;
+    }
+    toast(total ? '🧹 Datos de práctica quitados' : 'No había datos de práctica');
+    discoveries = [];
+    await loadRecords(); loadHomeTab();
+  } catch (e) { logError('quitar practica: ' + e.message); toast('Error: ' + e.message); }
+}
+document.getElementById('btn-prac-on').addEventListener('click', cargarPractica);
+document.getElementById('btn-prac-off').addEventListener('click', quitarPractica);
+
+// ==============================
+// REGISTRO DE ERRORES (colección "errores": solo crear; lee el admin)
+// ==============================
+let _errCount = 0;
+function logError(msg) {
+  try {
+    if (_errCount >= 5 || !user) return;
+    _errCount++;
+    db.collection('errores').add({
+      uid: user.uid, app: 'habitos', version: APP_VERSION,
+      msg: String(msg).slice(0, 500), url: location.pathname, ua: navigator.userAgent.slice(0, 200),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(function () {});
+  } catch (e) {}
+}
+window.addEventListener('error', e => logError(e.message));
+window.addEventListener('unhandledrejection', e => logError(e.reason && e.reason.message ? e.reason.message : e.reason));
+
+// ==============================
+// INSTALAR COMO APP
+// ==============================
+let _promptInstalar = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); _promptInstalar = e;
+  try { if (sessionStorage.getItem('th-install-no')) return; } catch (x) {}
+  document.getElementById('install-bar').classList.add('on');
+});
+document.getElementById('btn-install').addEventListener('click', async () => {
+  document.getElementById('install-bar').classList.remove('on');
+  if (_promptInstalar) { _promptInstalar.prompt(); _promptInstalar = null; }
+});
+document.getElementById('btn-install-no').addEventListener('click', () => {
+  document.getElementById('install-bar').classList.remove('on');
+  try { sessionStorage.setItem('th-install-no', '1'); } catch (x) {}
 });
 
 // ==============================
@@ -1155,6 +1439,7 @@ Generá entre 3 y 5 insights según la cantidad de datos disponibles.`;
     discoveries = JSON.parse(clean);
     await db.collection('users').doc(user.uid).collection('discoveries').add({
       items: discoveries,
+      _demo: snap.docs.some(d => d.data()._demo === true),
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     renderDiscoveries();
